@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="PocketBook"/>
+<meta name="theme-color" content="#007AFF"/>
+<link rel="manifest" href="/manifest.json"/>
+<link rel="apple-touch-icon" href="/icon-192.png"/>
+<title>PocketBook</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body,#root{height:100%;overflow:hidden}
+  body{background:#000;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Helvetica Neue",sans-serif}
+  #loading{position:fixed;inset:0;background:linear-gradient(170deg,#0a0a14,#0d0d22);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;z-index:99999}
+  #loading-logo{width:72px;height:72px;border-radius:20px;background:linear-gradient(145deg,#007AFF,#5856D6);display:flex;align-items:center;justify-content:center;box-shadow:0 8px 32px rgba(0,122,255,.4);font-size:36px;font-weight:900;color:white}
+  #loading-title{font-size:26px;font-weight:700;color:#fff;letter-spacing:-.5px}
+  #loading-spinner{width:32px;height:32px;border-radius:50%;border:3px solid rgba(255,255,255,.15);border-top-color:#007AFF;animation:spin .8s linear infinite}
+  #loading-error{display:none;color:#FF3B30;font-size:13px;text-align:center;padding:0 40px;line-height:1.5}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  ::-webkit-scrollbar{display:none}
+  input,select,textarea{-webkit-appearance:none;appearance:none;font-family:inherit}
+  input[type=date]::-webkit-calendar-picker-indicator{opacity:.4}
+  @keyframes sheetUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes dot{0%,80%,100%{transform:scale(.55);opacity:.35}40%{transform:scale(1);opacity:1}}
+  @keyframes toastIn{from{opacity:0;transform:translate(-50%,6px)}to{opacity:1;transform:translate(-50%,0)}}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes shakePad{0%,100%{transform:translateX(0)}20%{transform:translateX(-10px)}40%{transform:translateX(10px)}60%{transform:translateX(-8px)}80%{transform:translateX(8px)}}
+  @keyframes faceScan{0%{box-shadow:0 0 0 0 rgba(0,122,255,.7)}70%{box-shadow:0 0 0 20px rgba(0,122,255,0)}100%{box-shadow:0 0 0 0 rgba(0,122,255,0)}}
+  @keyframes rockyPop{0%{transform:scale(.6) rotate(-10deg);opacity:0}70%{transform:scale(1.08) rotate(2deg)}100%{transform:scale(1) rotate(0);opacity:1}}
+  @keyframes rockyPulse{0%,100%{box-shadow:0 4px 20px rgba(0,122,255,.45)}50%{box-shadow:0 4px 28px rgba(88,86,214,.65)}}
+  .fu{animation:fadeUp .22s ease forwards}
+  .rh{transition:opacity .1s} .rh:active{opacity:.6}
+  .kBtn{transition:opacity .1s,transform .1s} .kBtn:active{opacity:.45;transform:scale(.91)}
+  .rocky-fab{animation:rockyPop .4s cubic-bezier(.34,1.56,.64,1) forwards,rockyPulse 3s ease-in-out 1s infinite}
+  .rocky-fab:active{transform:scale(.9)!important}
+</style>
+</head>
+<body>
+<div id="loading">
+  <div id="loading-logo">P</div>
+  <div id="loading-title">PocketBook</div>
+  <div id="loading-spinner"></div>
+  <div id="loading-error"></div>
+</div>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useRef, useEffect, useCallback, useMemo } = React;
+const SF = `-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Helvetica Neue",sans-serif`;
+
+// ─── Themes ───────────────────────────────────────────────────────────────────
+const T = {
+  light:{bg:"#f2f2f7",card:"#ffffff",border:"rgba(0,0,0,0.08)",label:"#8e8e93",text:"#1c1c1e",sub:"#3c3c43",input:"#f2f2f7",inputBorder:"#e5e5ea",tabBar:"rgba(242,242,247,0.95)",header:"rgba(242,242,247,0.95)",separator:"#f2f2f7",pillBg:"#f2f2f7",pillText:"#3c3c43",sheet:"#ffffff",handle:"#c7c7cc",toastBg:"rgba(28,28,30,0.88)",shadow:"0 1px 4px rgba(0,0,0,0.07)",secondaryBtn:"#f2f2f7",secondaryText:"#1c1c1e",settingRow:"#ffffff"},
+  dark:{bg:"#000000",card:"#1c1c1e",border:"rgba(255,255,255,0.08)",label:"#636366",text:"#ffffff",sub:"rgba(235,235,245,0.8)",input:"#2c2c2e",inputBorder:"#3a3a3c",tabBar:"rgba(0,0,0,0.92)",header:"rgba(0,0,0,0.92)",separator:"#2c2c2e",pillBg:"#2c2c2e",pillText:"#ebebf5",sheet:"#1c1c1e",handle:"#48484a",toastBg:"rgba(44,44,46,0.95)",shadow:"0 1px 6px rgba(0,0,0,0.5)",secondaryBtn:"#2c2c2e",secondaryText:"#ffffff",settingRow:"#1c1c1e"},
+  dim:{bg:"#0d1117",card:"#161b22",border:"rgba(255,255,255,0.07)",label:"#8b949e",text:"#e6edf3",sub:"#c9d1d9",input:"#21262d",inputBorder:"#30363d",tabBar:"rgba(13,17,23,0.95)",header:"rgba(13,17,23,0.95)",separator:"#21262d",pillBg:"#21262d",pillText:"#c9d1d9",sheet:"#161b22",handle:"#30363d",toastBg:"rgba(22,27,34,0.95)",shadow:"0 1px 6px rgba(0,0,0,0.5)",secondaryBtn:"#21262d",secondaryText:"#e6edf3",settingRow:"#161b22"},
+};
+
+const COLOR_OPTIONS = ["#007AFF","#34C759","#FF9500","#FF3B30","#AF52DE","#FF2D55","#30D158","#FFD60A","#00C7BE","#5AC8FA","#FF6B35","#BF5AF2","#636366","#FF6961"];
+const ACCOUNT_TYPES = ["Checking","Savings","Credit","Investment","Loan","Other"];
+const CURRENCIES = ["USD ($)","EUR (€)","GBP (£)","JPY (¥)","CAD (CA$)","AUD (A$)"];
+
+const DEFAULT_CATEGORIES = [
+  {id:"groceries",name:"Groceries",color:"#34C759"},
+  {id:"dining",name:"Dining",color:"#FF9500"},
+  {id:"transport",name:"Transport",color:"#007AFF"},
+  {id:"entertainment",name:"Entertainment",color:"#AF52DE"},
+  {id:"shopping",name:"Shopping",color:"#FF2D55"},
+  {id:"health",name:"Health",color:"#30D158"},
+  {id:"housing",name:"Housing",color:"#FF3B30"},
+  {id:"utilities",name:"Utilities",color:"#FFD60A"},
+  {id:"income",name:"Income",color:"#00C7BE"},
+];
+const INIT_ACCOUNTS = [
+  {id:1,name:"Chase Checking",type:"Checking",balance:4821.53,institution:"Chase",last4:"4892",plaid:false},
+  {id:2,name:"Chase Savings",type:"Savings",balance:12340.00,institution:"Chase",last4:"2201",plaid:false},
+  {id:3,name:"Amex Platinum",type:"Credit",balance:-2341.87,institution:"American Express",last4:"9012",plaid:false},
+  {id:4,name:"Fidelity Brokerage",type:"Investment",balance:38920.44,institution:"Fidelity",last4:"5534",plaid:false},
+];
+const INIT_TXN = [
+  {id:1,name:"Whole Foods Market",category:"groceries",amount:-87.43,date:"2026-03-22",account:"Chase Checking"},
+  {id:2,name:"Netflix",category:"entertainment",amount:-15.99,date:"2026-03-21",account:"Amex Platinum"},
+  {id:3,name:"Direct Deposit",category:"income",amount:3200.00,date:"2026-03-20",account:"Chase Checking"},
+  {id:4,name:"Chipotle",category:"dining",amount:-14.75,date:"2026-03-20",account:"Amex Platinum"},
+  {id:5,name:"Shell Gas",category:"transport",amount:-62.10,date:"2026-03-19",account:"Chase Checking"},
+  {id:6,name:"Spotify",category:"entertainment",amount:-9.99,date:"2026-03-19",account:"Amex Platinum"},
+  {id:7,name:"CVS Pharmacy",category:"health",amount:-23.50,date:"2026-03-18",account:"Chase Checking"},
+  {id:8,name:"Starbucks",category:"dining",amount:-6.85,date:"2026-03-18",account:"Amex Platinum"},
+  {id:9,name:"ConEd Electric",category:"utilities",amount:-134.22,date:"2026-03-17",account:"Chase Checking"},
+  {id:10,name:"Amazon",category:"shopping",amount:-54.99,date:"2026-03-16",account:"Amex Platinum"},
+  {id:11,name:"Uber",category:"transport",amount:-18.40,date:"2026-03-15",account:"Chase Checking"},
+  {id:12,name:"Trader Joe's",category:"groceries",amount:-63.21,date:"2026-03-14",account:"Chase Checking"},
+  {id:13,name:"Planet Fitness",category:"health",amount:-24.99,date:"2026-03-13",account:"Amex Platinum"},
+  {id:14,name:"Rent",category:"housing",amount:-2100.00,date:"2026-03-01",account:"Chase Checking"},
+  {id:15,name:"Freelance Payment",category:"income",amount:850.00,date:"2026-03-11",account:"Chase Checking"},
+  {id:16,name:"Target",category:"shopping",amount:-89.34,date:"2026-03-09",account:"Chase Checking"},
+];
+const INIT_BUDGETS = [
+  {id:"groceries",limit:400},{id:"dining",limit:300},{id:"transport",limit:200},
+  {id:"entertainment",limit:100},{id:"shopping",limit:250},{id:"health",limit:150},
+  {id:"housing",limit:2100},{id:"utilities",limit:200},
+];
+
+// ─── Persistence ──────────────────────────────────────────────────────────────
+function load(key, fallback) {
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+  catch { return fallback; }
+}
+function save(key, val) {
+  try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const fmt = v => Math.abs(v).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtK = v => { const a=Math.abs(v); if(a>=1e6) return `$${(v/1e6).toFixed(2)}M`; if(a>=1000) return `$${(v/1000).toFixed(1)}k`; return `$${v.toFixed(0)}`; };
+
+function generateHistory(nw) {
+  const now = new Date(), pts = [];
+  for (let i = 60; i >= 0; i--) {
+    const d = new Date(now); d.setMonth(d.getMonth() - i);
+    const noise = (Math.random() - 0.45) * 1400;
+    const trend = (60 - i) * 290;
+    pts.push({ date: d.toISOString().slice(0,7), value: Math.round(nw - trend + noise) });
+  }
+  pts[pts.length-1].value = nw;
+  return pts;
+}
+
+// ─── Icons ────────────────────────────────────────────────────────────────────
+const HomeIcon = () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 9.5L12 3L21 9.5V20C21 20.55 20.55 21 20 21H15V15H9V21H4C3.45 21 3 20.55 3 20V9.5Z" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+const CardIcon = () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="2" y="5" width="20" height="14" rx="3" stroke="currentColor" strokeWidth="1.7"/><path d="M2 10H22" stroke="currentColor" strokeWidth="1.7"/></svg>;
+const ListIcon = () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M9 6H20M9 12H20M9 18H20M5 6V6.01M5 12V12.01M5 18V18.01" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>;
+const ChartIcon = () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M18 20V10M12 20V4M6 20V14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+const GearIcon = () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" stroke="currentColor" strokeWidth="1.7"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" stroke="currentColor" strokeWidth="1.7"/></svg>;
+const SparkleIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M12 2L14.09 8.26L20.18 9L15.27 13.74L16.69 20L12 17.27L7.31 20L8.73 13.74L3.82 9L9.91 8.26L12 2Z"/></svg>;
+const FaceIDIcon = ({size=24,color="white"}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none"><path d="M7 3H5C3.9 3 3 3.9 3 5V7" stroke={color} strokeWidth="1.8" strokeLinecap="round"/><path d="M17 3H19C20.1 3 21 3.9 21 5V7" stroke={color} strokeWidth="1.8" strokeLinecap="round"/><path d="M7 21H5C3.9 21 3 20.1 3 19V17" stroke={color} strokeWidth="1.8" strokeLinecap="round"/><path d="M17 21H19C20.1 21 21 20.1 21 19V17" stroke={color} strokeWidth="1.8" strokeLinecap="round"/><path d="M9 10V10.5" stroke={color} strokeWidth="2" strokeLinecap="round"/><path d="M15 10V10.5" stroke={color} strokeWidth="2" strokeLinecap="round"/><path d="M9 15C9 15 10 16.5 12 16.5C14 16.5 15 15 15 15" stroke={color} strokeWidth="1.8" strokeLinecap="round"/><path d="M12 10V13" stroke={color} strokeWidth="1.8" strokeLinecap="round"/></svg>;
+
+// ─── UI Primitives ────────────────────────────────────────────────────────────
+const makeIS = t => ({width:"100%",padding:"13px 14px",borderRadius:12,border:`1px solid ${t.inputBorder}`,fontSize:16,fontFamily:SF,color:t.text,background:t.input,outline:"none"});
+
+const Field = ({label,children,t}) => (
+  <div style={{marginBottom:14}}>
+    {label && <div style={{fontSize:12,fontWeight:600,color:t.label,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6}}>{label}</div>}
+    {children}
+  </div>
+);
+
+const Btn = ({children,onClick,secondary,danger,full,t}) => (
+  <button onClick={onClick} style={{background:danger?"#FF3B30":secondary?t.secondaryBtn:"#007AFF",color:(secondary&&!danger)?t.secondaryText:"#fff",border:"none",borderRadius:12,padding:"13px 18px",fontSize:16,fontWeight:600,fontFamily:SF,cursor:"pointer",width:full?"100%":"auto"}}>
+    {children}
+  </button>
+);
+
+const Toggle = ({value,onChange}) => (
+  <div onClick={()=>onChange(!value)} style={{width:51,height:31,borderRadius:15.5,background:value?"#34C759":"#e5e5ea",cursor:"pointer",position:"relative",transition:"background .2s",flexShrink:0}}>
+    <div style={{position:"absolute",top:2,left:value?22:2,width:27,height:27,borderRadius:"50%",background:"#fff",boxShadow:"0 2px 6px rgba(0,0,0,.2)",transition:"left .2s"}}/>
+  </div>
+);
+
+const ColorPicker = ({current,onChange}) => (
+  <div style={{display:"flex",flexWrap:"wrap",gap:10,paddingTop:2}}>
+    {COLOR_OPTIONS.map(c => (
+      <div key={c} onClick={()=>onChange(c)} style={{width:30,height:30,borderRadius:8,background:c,cursor:"pointer",outline:current===c?"3px solid #007AFF":"3px solid transparent",outlineOffset:2,transition:"outline .1s"}}/>
+    ))}
+  </div>
+);
+
+const Section = ({label,children,t}) => (
+  <div style={{marginBottom:28}}>
+    {label && <div style={{fontSize:13,fontWeight:600,color:t.label,marginBottom:8,paddingLeft:4,textTransform:"uppercase",letterSpacing:"0.05em"}}>{label}</div>}
+    <div style={{borderRadius:12,overflow:"hidden",boxShadow:t.shadow}}>{children}</div>
+  </div>
+);
+
+const SettingRow = ({label,sub,right,icon,iconBg,first,last,t,onClick,chevron}) => (
+  <div onClick={onClick} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:t.settingRow,borderTop:first?"none":`1px solid ${t.separator}`,borderRadius:last&&first?"12px":first?"12px 12px 0 0":last?"0 0 12px 12px":"0",cursor:onClick?"pointer":"default"}}>
+    {icon && <div style={{width:32,height:32,borderRadius:8,background:iconBg||"#8e8e93",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{icon}</div>}
+    <div style={{flex:1,minWidth:0}}>
+      <div style={{fontSize:16,color:t.text}}>{label}</div>
+      {sub && <div style={{fontSize:12,color:t.label,marginTop:1}}>{sub}</div>}
+    </div>
+    {right}
+    {chevron && <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M1 1L7 7L1 13" stroke={t.label} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+  </div>
+);
+
+// ─── Lock Screen ──────────────────────────────────────────────────────────────
+function LockScreen({onUnlock,savedPin,onSavePin}) {
+  const isSetup = !savedPin;
+  const [phase,setPhase] = useState(isSetup?"set":"enter");
+  const [pin,setPin] = useState("");
+  const [firstPin,setFirstPin] = useState("");
+  const [shake,setShake] = useState(false);
+  const [faceAnim,setFaceAnim] = useState(false);
+  const labels = {set:"Create a passcode",confirm:"Confirm your passcode",enter:"Enter your passcode"};
+
+  function doShake() { setShake(true); setTimeout(()=>{setShake(false);setPin("");},600); }
+  function press(d) {
+    if(pin.length>=4) return;
+    const next = pin+d; setPin(next);
+    if(next.length<4) return;
+    setTimeout(()=>{
+      if(phase==="enter"){if(next===savedPin)onUnlock();else doShake();}
+      else if(phase==="set"){setFirstPin(next);setPin("");setPhase("confirm");}
+      else if(phase==="confirm"){if(next===firstPin){onSavePin(next);onUnlock();}else{setFirstPin("");setPin("");setPhase("set");doShake();}}
+    },80);
+  }
+  function del(){setPin(p=>p.slice(0,-1));}
+  function useFaceID(){setFaceAnim(true);setTimeout(()=>{setFaceAnim(false);onUnlock();},900);}
+  const KEYS=[["1","2","3"],["4","5","6"],["7","8","9"],["face","0","del"]];
+  return (
+    <div style={{position:"fixed",inset:0,zIndex:9999,background:"linear-gradient(170deg,#0a0a14,#0d0d22)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"space-between",padding:"env(safe-area-inset-top,44px) 0 env(safe-area-inset-bottom,24px)",fontFamily:SF}}>
+      <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:14,paddingTop:8}}>
+        <div style={{width:72,height:72,borderRadius:20,background:"linear-gradient(145deg,#007AFF,#5856D6)",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 8px 32px rgba(0,122,255,.4)"}}>
+          <svg width="34" height="34" viewBox="0 0 34 34"><rect width="34" height="34" rx="8" fill="none"/><text x="6" y="27" font-size="28" font-weight="900" fill="white" font-family="-apple-system,sans-serif">P</text></svg>
+        </div>
+        <div style={{textAlign:"center"}}>
+          <div style={{fontSize:26,fontWeight:700,color:"#fff",letterSpacing:"-0.5px"}}>PocketBook</div>
+          <div style={{fontSize:15,color:"rgba(255,255,255,.5)",marginTop:4}}>{labels[phase]}</div>
+        </div>
+      </div>
+      <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:36}}>
+        <div style={{display:"flex",gap:20,animation:shake?"shakePad .5s ease":"none"}}>
+          {[0,1,2,3].map(i=><div key={i} style={{width:14,height:14,borderRadius:"50%",background:pin.length>i?"#fff":"transparent",border:"2px solid rgba(255,255,255,.3)",transition:"background .12s"}}/>)}
+        </div>
+        {phase==="enter"&&(
+          <button onClick={useFaceID} className="kBtn" style={{background:"transparent",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
+            <div style={{width:46,height:46,borderRadius:12,border:"2px solid rgba(255,255,255,.25)",display:"flex",alignItems:"center",justifyContent:"center",animation:faceAnim?"faceScan .9s ease":"none"}}>
+              <FaceIDIcon size={26} color={faceAnim?"#007AFF":"rgba(255,255,255,.6)"}/>
+            </div>
+            <span style={{fontSize:11,color:"rgba(255,255,255,.38)"}}>Face ID</span>
+          </button>
+        )}
+      </div>
+      <div style={{width:"100%",maxWidth:300,padding:"0 20px"}}>
+        {KEYS.map((row,ri)=>(
+          <div key={ri} style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:12}}>
+            {row.map((k,ki)=>{
+              if(k==="face") return <div key={ki}/>;
+              if(k==="del") return <button key={ki} className="kBtn" onClick={del} style={{height:72,borderRadius:18,background:"rgba(255,255,255,.08)",border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}><svg width="22" height="16" viewBox="0 0 22 16" fill="none"><path d="M8 1H20C20.55 1 21 1.45 21 2V14C21 14.55 20.55 15 20 15H8L1 8L8 1Z" stroke="rgba(255,255,255,.6)" strokeWidth="1.6" strokeLinejoin="round"/><path d="M14 6L10 10M10 6L14 10" stroke="rgba(255,255,255,.6)" strokeWidth="1.6" strokeLinecap="round"/></svg></button>;
+              return <button key={ki} className="kBtn" onClick={()=>press(k)} style={{height:72,borderRadius:18,background:"rgba(255,255,255,.1)",border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:30,fontWeight:300,color:"#fff"}}>{k}</span></button>;
+            })}
+          </div>
+        ))}
+        {isSetup&&<div style={{textAlign:"center",marginTop:4,fontSize:13,color:"rgba(255,255,255,.28)"}}>You'll use this to unlock Ledger</div>}
+      </div>
+    </div>
+  );
+}
+
+// ─── Sheet ────────────────────────────────────────────────────────────────────
+function Sheet({show,onClose,title,children,tall,t}) {
+  if(!show) return null;
+  return (
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",backdropFilter:"blur(10px)",zIndex:500,display:"flex",alignItems:"flex-end"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:t.sheet,borderRadius:"22px 22px 0 0",width:"100%",maxHeight:tall?"90vh":"78vh",animation:"sheetUp .28s cubic-bezier(.32,.72,0,1)",display:"flex",flexDirection:"column"}}>
+        <div style={{display:"flex",justifyContent:"center",padding:"10px 0 4px",flexShrink:0}}><div style={{width:36,height:4,borderRadius:2,background:t.handle}}/></div>
+        <div style={{padding:"4px 20px 12px",borderBottom:`1px solid ${t.separator}`,display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
+          <span style={{fontSize:17,fontWeight:600,color:t.text}}>{title}</span>
+          <button onClick={onClose} style={{background:t.pillBg,border:"none",borderRadius:"50%",width:28,height:28,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:13,color:t.sub,fontWeight:600}}>✕</button>
+        </div>
+        <div style={{overflowY:"auto",flex:1,padding:"16px 20px",paddingBottom:"max(16px,env(safe-area-inset-bottom))"}}>{children}</div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Donut ────────────────────────────────────────────────────────────────────
+function Donut({segments,total,size=140,stroke=18}) {
+  const r=(size-stroke)/2,circ=2*Math.PI*r;let acc=0;
+  const slices=segments.map(s=>{const dash=(s.value/total)*circ;const sl={...s,dash,offset:acc};acc+=dash;return sl;});
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{transform:"rotate(-90deg)",display:"block",flexShrink:0}}>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#88888820" strokeWidth={stroke}/>
+      {slices.map((s,i)=><circle key={i} cx={size/2} cy={size/2} r={r} fill="none" stroke={s.color} strokeWidth={stroke} strokeDasharray={`${s.dash} ${circ-s.dash}`} strokeDashoffset={-s.offset}/>)}
+    </svg>
+  );
+}
+
+// ─── Net Worth Chart ──────────────────────────────────────────────────────────
+function NetWorthChart({allData,t}) {
+  const [range,setRange] = useState("6M");
+  const [scrubIdx,setScrubIdx] = useState(null);
+  const [dragging,setDragging] = useState(false);
+  const svgRef = useRef(null);
+  const RANGES=["1M","6M","1Y","5Y"],CUTS={"1M":1,"6M":6,"1Y":12,"5Y":60};
+  const data=allData.slice(-(CUTS[range]+1));
+  const vals=data.map(d=>d.value),min=Math.min(...vals),max=Math.max(...vals),rng=max-min||1;
+  const activeIdx=scrubIdx!==null?scrubIdx:data.length-1;
+  const activeVal=data[activeIdx]?.value??0,startVal=data[0]?.value??0;
+  const delta=activeVal-startVal,pct=startVal?(delta/Math.abs(startVal))*100:0;
+  const positive=delta>=0,accentColor=positive?"#34C759":"#FF3B30";
+  const VW=320,VH=110,PL=6,PR=6,PT=8,PB=20,cW=VW-PL-PR,cH=VH-PT-PB;
+  const pts=data.map((d,i)=>({x:PL+(i/(data.length-1))*cW,y:PT+cH-((d.value-min)/rng)*cH,d}));
+  const activeX=pts[activeIdx]?.x??pts[pts.length-1].x;
+  const activeY=pts[activeIdx]?.y??pts[pts.length-1].y;
+  const polyPts=pts.map(p=>`${p.x},${p.y}`).join(" ");
+  const areaPts=`${PL},${PT+cH} ${polyPts} ${PL+cW},${PT+cH}`;
+  const xLabels=data.length>1?[{label:data[0].date.slice(2,7),x:PL},{label:data[data.length-1].date.slice(2,7),x:PL+cW}]:[];
+
+  function getIdx(clientX){
+    const svg=svgRef.current;if(!svg)return null;
+    const rect=svg.getBoundingClientRect();
+    return Math.max(0,Math.min(data.length-1,Math.round(((clientX-rect.left)/rect.width)*(data.length-1))));
+  }
+  const handleMove=useCallback((e)=>{if(!dragging)return;const cx=e.touches?e.touches[0].clientX:e.clientX;setScrubIdx(getIdx(cx));},[dragging,data.length]);
+  const handleStart=useCallback((e)=>{e.preventDefault();setDragging(true);const cx=e.touches?e.touches[0].clientX:e.clientX;setScrubIdx(getIdx(cx));},[data.length]);
+  const handleEnd=useCallback(()=>{setDragging(false);setTimeout(()=>setScrubIdx(null),1200);},[]);
+  useEffect(()=>{
+    if(dragging){window.addEventListener("mousemove",handleMove);window.addEventListener("mouseup",handleEnd);window.addEventListener("touchmove",handleMove,{passive:false});window.addEventListener("touchend",handleEnd);}
+    return()=>{window.removeEventListener("mousemove",handleMove);window.removeEventListener("mouseup",handleEnd);window.removeEventListener("touchmove",handleMove);window.removeEventListener("touchend",handleEnd);};
+  },[dragging,handleMove,handleEnd]);
+
+  return (
+    <div style={{background:t.card,borderRadius:18,padding:"18px 16px 14px",boxShadow:t.shadow,marginBottom:14}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
+        <div>
+          <div style={{fontSize:11,fontWeight:600,color:t.label,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:3}}>{scrubIdx!==null?data[scrubIdx]?.date:"Net Worth"}</div>
+          <div style={{fontSize:28,fontWeight:700,color:t.text,letterSpacing:"-0.5px"}}>{fmtK(activeVal)}</div>
+          <div style={{fontSize:13,color:accentColor,fontWeight:500,marginTop:2}}>{positive?"+":""}{fmtK(delta)} ({positive?"+":""}{pct.toFixed(1)}%)</div>
+        </div>
+        <div style={{display:"flex",background:t.input,borderRadius:10,padding:3,gap:2,flexShrink:0}}>
+          {RANGES.map(r=><button key={r} onClick={()=>{setRange(r);setScrubIdx(null);}} style={{background:range===r?"#007AFF":"transparent",color:range===r?"#fff":t.label,border:"none",borderRadius:7,padding:"5px 9px",fontSize:12,fontWeight:600,cursor:"pointer",transition:"all .15s"}}>{r}</button>)}
+        </div>
+      </div>
+      <div style={{userSelect:"none",WebkitUserSelect:"none"}}>
+        <svg ref={svgRef} viewBox={`0 0 ${VW} ${VH}`} style={{width:"100%",overflow:"visible",cursor:"crosshair",touchAction:"none"}} preserveAspectRatio="none" onMouseDown={handleStart} onTouchStart={handleStart}>
+          <defs><linearGradient id="cwGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={accentColor} stopOpacity=".22"/><stop offset="100%" stopColor={accentColor} stopOpacity="0"/></linearGradient></defs>
+          {[.25,.5,.75].map(f=><line key={f} x1={PL} y1={PT+cH*f} x2={PL+cW} y2={PT+cH*f} stroke={t.text==="#1c1c1e"?"rgba(0,0,0,.05)":"rgba(255,255,255,.05)"} strokeWidth="1"/>)}
+          <polygon points={areaPts} fill="url(#cwGrad)"/>
+          <polyline points={polyPts} fill="none" stroke={accentColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          {dragging&&<line x1={activeX} y1={PT} x2={activeX} y2={PT+cH} stroke={accentColor} strokeWidth="1" strokeDasharray="3,3" opacity=".6"/>}
+          <circle cx={activeX} cy={activeY} r={dragging?5:3.5} fill={accentColor} stroke={t.card} strokeWidth="2"/>
+          {dragging&&(()=>{const tl=activeX/VW<.5;return(<g><rect x={tl?activeX+4:activeX-74} y={activeY-26} width={70} height={22} rx={6} fill={t.card} stroke={accentColor} strokeWidth="1" opacity=".95"/><text x={tl?activeX+39:activeX-39} y={activeY-11} textAnchor="middle" fontSize="11" fontWeight="700" fill={t.text}>{fmtK(activeVal)}</text></g>);})()}
+          {xLabels.map((xl,i)=><text key={i} x={xl.x} y={VH-2} textAnchor={i===0?"start":"end"} fontSize="9" fill={t.label}>{xl.label}</text>)}
+        </svg>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:10,paddingTop:10,borderTop:`1px solid ${t.separator}`}}>
+        {[{label:"Period High",val:fmtK(max)},{label:"Period Low",val:fmtK(min)}].map((s,i)=>(
+          <div key={i}><div style={{fontSize:10,color:t.label,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>{s.label}</div><div style={{fontSize:15,fontWeight:600,color:t.text}}>{s.val}</div></div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Spending Breakdown ───────────────────────────────────────────────────────
+function SpendingBreakdown({spendByCat,budgets,expenses,t,onSetBudget}) {
+  const [mode,setMode]=useState("pie");
+  const [selected,setSelected]=useState(null);
+  const totalBudget=budgets.reduce((a,b)=>a+(b.limit||0),0);
+  const rows=spendByCat.map(c=>{const b=budgets.find(b=>b.id===c.id);const limit=b?.limit||0;const pct=limit>0?Math.min((c.value/limit)*100,100):0;const over=limit>0&&c.value>limit;const remaining=limit>0?limit-c.value:null;return{...c,limit,pct,over,remaining};});
+  const sel=selected?rows.find(r=>r.id===selected):null;
+  return (
+    <div style={{background:t.card,borderRadius:18,marginBottom:14,boxShadow:t.shadow,overflow:"hidden"}}>
+      <div style={{padding:"16px 16px 12px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div style={{fontSize:15,fontWeight:600,color:t.text}}>Spending Breakdown</div>
+        <div style={{display:"flex",background:t.input,borderRadius:9,padding:3,gap:2}}>
+          {[{id:"pie",label:"Chart"},{id:"budget",label:"vs Budget"}].map(opt=>(
+            <button key={opt.id} onClick={()=>{setMode(opt.id);setSelected(null);}} style={{background:mode===opt.id?"#007AFF":"transparent",color:mode===opt.id?"#fff":t.label,border:"none",borderRadius:6,padding:"5px 10px",fontSize:12,fontWeight:600,cursor:"pointer",transition:"all .15s"}}>{opt.label}</button>
+          ))}
+        </div>
+      </div>
+      {mode==="pie"&&(
+        <div style={{padding:"0 16px 16px"}}>
+          <div style={{display:"flex",gap:14,alignItems:"center"}}>
+            <div style={{position:"relative",flexShrink:0}} onClick={()=>setSelected(null)}>
+              <Donut segments={spendByCat} total={expenses} size={130} stroke={20}/>
+              <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",textAlign:"center",pointerEvents:"none"}}>
+                {sel?(<><div style={{fontSize:9,color:t.label,marginBottom:1}}>{sel.name}</div><div style={{fontSize:13,fontWeight:700,color:sel.color}}>${sel.value.toFixed(0)}</div></>):(<><div style={{fontSize:9,color:t.label}}>Total</div><div style={{fontSize:13,fontWeight:700,color:t.text}}>${expenses.toFixed(0)}</div></>)}
+              </div>
+            </div>
+            <div style={{flex:1,display:"flex",flexDirection:"column",gap:7,minWidth:0}}>
+              {rows.slice(0,6).map(c=>(
+                <button key={c.id} onClick={()=>setSelected(selected===c.id?null:c.id)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:selected===c.id?c.color+"12":"transparent",border:"none",borderRadius:8,padding:"3px 6px",cursor:"pointer",margin:"0 -6px"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:7,minWidth:0}}>
+                    <div style={{width:9,height:9,borderRadius:2.5,background:c.color,flexShrink:0}}/>
+                    <span style={{fontSize:12,color:t.sub,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name}</span>
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",flexShrink:0,marginLeft:4}}>
+                    <span style={{fontSize:12,fontWeight:600,color:t.text}}>${c.value.toFixed(0)}</span>
+                    {c.limit>0&&<span style={{fontSize:10,color:c.over?"#FF3B30":t.label}}>{c.over?`$${(c.value-c.limit).toFixed(0)} over`:`$${c.remaining.toFixed(0)} left`}</span>}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+          {sel&&(
+            <div style={{marginTop:12,background:sel.color+"10",borderRadius:12,padding:"12px 14px",border:`1px solid ${sel.color}25`}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:sel.limit>0?10:0}}>
+                <div><div style={{fontSize:13,fontWeight:600,color:t.text}}>{sel.name}</div><div style={{fontSize:12,color:t.label,marginTop:1}}>{((sel.value/expenses)*100).toFixed(1)}% of total</div></div>
+                <div style={{textAlign:"right"}}><div style={{fontSize:18,fontWeight:700,color:sel.color}}>${sel.value.toFixed(2)}</div>{sel.limit>0&&<div style={{fontSize:11,color:t.label}}>of ${sel.limit} budget</div>}</div>
+              </div>
+              {sel.limit>0?(<><div style={{height:5,background:t.input,borderRadius:99,overflow:"hidden",marginBottom:6}}><div style={{height:"100%",width:`${sel.pct}%`,background:sel.over?"#FF3B30":sel.color,borderRadius:99}}/></div><div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:11,color:sel.over?"#FF3B30":"#34C759",fontWeight:500}}>{sel.over?`${sel.pct.toFixed(0)}% — $${(sel.value-sel.limit).toFixed(0)} over`:`${sel.pct.toFixed(0)}% used`}</span><button onClick={()=>onSetBudget(sel.id,sel.limit)} style={{fontSize:11,color:"#007AFF",background:"none",border:"none",cursor:"pointer",fontWeight:500}}>Edit budget</button></div></>):(<button onClick={()=>onSetBudget(sel.id,0)} style={{fontSize:12,color:"#007AFF",background:"none",border:"none",cursor:"pointer",padding:0}}>+ Set a budget</button>)}
+            </div>
+          )}
+        </div>
+      )}
+      {mode==="budget"&&(
+        <div style={{padding:"0 16px 16px"}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:14}}>
+            {(()=>{const oc=rows.filter(r=>r.over).length,ot=rows.filter(r=>r.limit>0&&!r.over).length,nb=rows.filter(r=>r.limit===0).length;return[{label:"Over budget",val:oc,color:"#FF3B30"},{label:"On track",val:ot,color:"#34C759"},{label:"No budget",val:nb,color:t.label}].map((s,i)=>(<div key={i} style={{background:t.input,borderRadius:10,padding:"10px 8px",textAlign:"center"}}><div style={{fontSize:20,fontWeight:700,color:s.color}}>{s.val}</div><div style={{fontSize:10,color:t.label,marginTop:1}}>{s.label}</div></div>));})()}
+          </div>
+          {rows.map((c,i)=>(
+            <div key={c.id} style={{padding:"12px 0",borderTop:i===0?"none":`1px solid ${t.separator}`}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:7}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:9,height:9,borderRadius:2.5,background:c.color,flexShrink:0}}/><span style={{fontSize:14,fontWeight:500,color:t.text}}>{c.name}</span>{c.over&&<span style={{fontSize:10,fontWeight:700,color:"#FF3B30",background:"#FF3B3015",borderRadius:5,padding:"1px 6px"}}>OVER</span>}</div>
+                <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:13,fontWeight:600,color:c.over?"#FF3B30":t.text}}>${c.value.toFixed(0)}</span>{c.limit>0&&<span style={{fontSize:12,color:t.label}}>/ ${c.limit}</span>}</div>
+              </div>
+              {c.limit>0?(<><div style={{position:"relative",height:7,background:t.input,borderRadius:99,overflow:"hidden"}}><div style={{position:"absolute",inset:0,background:c.color+"25",borderRadius:99}}/><div style={{position:"absolute",top:0,left:0,bottom:0,width:`${c.pct}%`,background:c.over?"#FF3B30":c.color,borderRadius:99,transition:"width .7s cubic-bezier(.16,1,.3,1)"}}/></div><div style={{display:"flex",justifyContent:"space-between",marginTop:4}}><span style={{fontSize:11,color:c.over?"#FF3B30":t.label}}>{c.over?`$${(c.value-c.limit).toFixed(0)} over`:`$${c.remaining.toFixed(0)} remaining`}</span><span style={{fontSize:11,color:t.label}}>{c.pct.toFixed(0)}%</span></div></>):(<div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{height:7,flex:1,background:t.input,borderRadius:99,marginRight:10}}/><button onClick={()=>onSetBudget(c.id,0)} style={{fontSize:11,color:"#007AFF",background:"none",border:"none",cursor:"pointer",fontWeight:600,whiteSpace:"nowrap"}}>Set limit</button></div>)}
+            </div>
+          ))}
+          {totalBudget>0&&(<div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${t.separator}`}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{fontSize:13,fontWeight:600,color:t.text}}>Total Budget</span><span style={{fontSize:13,color:t.label}}>${expenses.toFixed(0)} of ${totalBudget}</span></div><div style={{height:8,background:t.input,borderRadius:99,overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min((expenses/totalBudget)*100,100)}%`,background:expenses>totalBudget?"#FF3B30":"linear-gradient(90deg,#007AFF,#5856D6)",borderRadius:99}}/></div><div style={{marginTop:5,fontSize:11,color:expenses>totalBudget?"#FF3B30":t.label}}>{expenses>totalBudget?`$${(expenses-totalBudget).toFixed(0)} over`:`$${(totalBudget-expenses).toFixed(0)} left`}</div></div>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Rocky AI ─────────────────────────────────────────────────────────────────
+function rockyThink(input,{categories,transactions,budgets,accounts,onAction}) {
+  const q=input.toLowerCase().trim(),catMap=Object.fromEntries(categories.map(c=>[c.id,c])),today=new Date().toISOString().slice(0,10);
+  const netWorth=accounts.reduce((a,b)=>a+b.balance,0),income=transactions.filter(t=>t.amount>0).reduce((a,t)=>a+t.amount,0),expenses=transactions.filter(t=>t.amount<0).reduce((a,t)=>a+Math.abs(t.amount),0),savings=income-expenses;
+  const spendByCat=categories.map(c=>({...c,spent:transactions.filter(t=>t.category===c.id&&t.amount<0).reduce((a,t)=>a+Math.abs(t.amount),0)})).filter(c=>c.spent>0).sort((a,b)=>b.spent-a.spent);
+  const topCat=spendByCat[0],recent=[...transactions].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
+  const $=n=>`$${Math.abs(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+  const has=(...words)=>words.every(w=>q.includes(w)),any=(...words)=>words.some(w=>q.includes(w));
+  if(any("hi","hello","hey","howdy")&&q.split(" ").length<5)return{text:"Hey! I'm Dex. Ask me about your spending, budgets, or say \"add $50 dining expense\"."};
+  if(any("how am i","overview","summary","snapshot","overall","health"))return{text:`Here's your month:\n\nNet Worth: ${$(netWorth)}\nIncome: ${$(income)}\nSpending: ${$(expenses)}\nSaved: ${$(savings)} (${income>0?((savings/income)*100).toFixed(0):0}%)\n\nTop category: ${topCat?.name||"none"} at ${$(topCat?.spent||0)}.`};
+  if(any("net worth","total worth","how much do i have"))return{text:`Your net worth is ${$(netWorth)} across ${accounts.length} accounts.`};
+  if(any("income","earn","salary","paycheck"))return{text:`Total income this month: ${$(income)}.`};
+  if(any("spending","spent","expenses")&&!any("category","on "))return{text:`You've spent ${$(expenses)} this month, leaving ${$(Math.max(savings,0))} saved.`};
+  if(any("biggest","largest","top","highest")&&any("expense","spending","category"))return topCat?{text:`Biggest category: ${topCat.name} at ${$(topCat.spent)}. Next is ${spendByCat[1]?.name||"nothing"} at ${$(spendByCat[1]?.spent||0)}.`}:{text:"No expenses recorded yet."};
+  for(const cat of categories){if(q.includes(cat.name.toLowerCase())&&any("spend","spent","much","how","cost")){const spent=spendByCat.find(c=>c.id===cat.id)?.spent||0,b=budgets.find(b=>b.id===cat.id),limit=b?.limit||0;let r=`Spent ${$(spent)} on ${cat.name}.`;if(limit>0){const rem=limit-spent;r+=rem>=0?` $${rem.toFixed(0)} left of $${limit} budget.`:` $${Math.abs(rem).toFixed(0)} over budget!`;}return{text:r};}}
+  if(any("budget","budgets","on track","over budget")){const over=budgets.filter(b=>{const s=transactions.filter(t=>t.category===b.id&&t.amount<0).reduce((a,t)=>a+Math.abs(t.amount),0);return b.limit>0&&s>b.limit;});return over.length===0?{text:`All ${budgets.filter(b=>b.limit>0).length} budgets are on track!`}:{text:`Over budget in: ${over.map(b=>catMap[b.id]?.name).filter(Boolean).join(", ")}.`};}
+  if(any("recent","latest","transactions","what did i buy")){const list=recent.map(t=>`• ${t.name} — ${t.amount>0?"+":""}${$(t.amount)}`).join("\n");return{text:`Recent transactions:\n\n${list}`};}
+  if(any("account","balance","balances","bank")){const list=accounts.map(a=>`• ${a.name}: ${a.balance<0?"-":""}${$(a.balance)} (${a.type})`).join("\n");return{text:`${accounts.length} accounts:\n\n${list}`};}
+  if(any("saving","savings","save","saved")){const rate=income>0?((savings/income)*100).toFixed(1):0;return savings>=0?{text:`Saved ${$(savings)} (${rate}% of income). ${savings>1000?"Great work!":"Keep it up!"}`}:{text:`Spending ${$(Math.abs(savings))} more than earned. Time to cut back!`};}
+  if(any("tip","advice","suggest","improve","save more","cut","reduce")){const oc=spendByCat.filter(c=>{const b=budgets.find(b=>b.id===c.id);return b&&b.limit>0&&c.spent>b.limit;});return oc.length>0?{text:`You're over budget in ${oc.map(c=>c.name).join(" and ")}. Cut back there first.`}:savings<0?{text:`Spending more than earning. ${topCat?`${topCat.name} at ${$(topCat.spent)} is your biggest spend — set a budget.`:""}`}:{text:`Saving ${$(savings)}/month — ${income>0?((savings/income)*100).toFixed(0):0}% of income. Target 20%+!`};}
+  const amtMatch=q.match(/\$?([\d]+(?:\.[\d]+)?)/);
+  if(any("add","log","record","spent","paid")&&amtMatch){
+    const amt=parseFloat(amtMatch[1]);if(!amt||amt<=0)return{text:"Couldn't read the amount. Try: \"add $45 dining expense\"."};
+    const isIncome=any("income","salary","deposit","received");
+    let matchedCat=null;
+    for(const cat of categories){if(q.includes(cat.name.toLowerCase())){matchedCat=cat;break;}}
+    if(!matchedCat){const fuzzy=[{words:["food","grocery","groceries","supermarket","whole foods","trader"],id:"groceries"},{words:["restaurant","dining","dinner","lunch","cafe","coffee","starbucks","chipotle"],id:"dining"},{words:["uber","lyft","gas","transport","transit","bus","train","flight"],id:"transport"},{words:["netflix","spotify","hulu","movie","game","entertainment","concert"],id:"entertainment"},{words:["amazon","shop","shopping","clothes","purchase"],id:"shopping"},{words:["doctor","pharmacy","gym","health","medical","cvs"],id:"health"},{words:["rent","mortgage","housing","apartment"],id:"housing"},{words:["electric","water","internet","phone","utilities"],id:"utilities"}];for(const f of fuzzy){if(f.words.some(w=>q.includes(w))){matchedCat=categories.find(c=>c.id===f.id);break;}}}
+    const stopWords=["add","log","record","expense","income","transaction","a","an","the","today","yesterday","for","on","at","from","to"];
+    const words=q.split(/\s+/).filter(w=>!stopWords.includes(w)&&!w.match(/^\$?[\d.]+$/)&&w.length>1);
+    const name=words.length>0?words.map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(" "):(matchedCat?.name||"Expense");
+    const catId=matchedCat?.id||(isIncome?"income":categories[0]?.id);
+    onAction({type:"add_transaction",name,amount:amt,category:catId,date:today,account:accounts[0]?.name||"",txnType:isIncome?"income":"expense"});
+    return{text:`Added ${isIncome?"+":"-"}$${amt.toFixed(2)} for "${name}" under ${matchedCat?.name||categories.find(c=>c.id===catId)?.name||"Uncategorized"}.`};
+  }
+  const budgetMatch=q.match(/set\s+(.+?)\s+budget\s+(?:to\s+)?\$?([\d]+)/i)||q.match(/budget\s+(?:for\s+)?(.+?)\s+(?:to\s+)?\$?([\d]+)/i);
+  if(budgetMatch||any("set","change","update","budget")&&amtMatch){
+    const limit=amtMatch?parseFloat(amtMatch[1]):null;
+    if(!limit)return{text:"Try: \"set dining budget to $300\"."};
+    let matchedCat=null;for(const cat of categories){if(q.includes(cat.name.toLowerCase())){matchedCat=cat;break;}}
+    if(!matchedCat)return{text:`Which category? Options: ${categories.map(c=>c.name).join(", ")}.`};
+    onAction({type:"set_budget",categoryId:matchedCat.id,limit});
+    return{text:`${matchedCat.name} budget set to $${limit}/month.`};
+  }
+  if(any("what can you","help","commands"))return{text:"I can:\n• \"How am I doing?\"\n• \"What did I spend on dining?\"\n• \"Add $45 dining expense\"\n• \"Set groceries budget to $400\"\n• \"Show my accounts\"\n• \"Recent transactions\"\n• \"Tips to save money\""};
+  return{text:["Try asking: \"how am I doing?\" or \"add $30 dining expense\".","Say things like \"what's my biggest expense?\" or \"set dining budget to $300\".","Type \"help\" to see everything I can do!"][Math.floor(Math.random()*3)]};
+}
+
+const DEX_QS=[
+  {category:"Overview",icon:"◈",color:"#007AFF",questions:["How am I doing this month?","What's my savings rate?","Am I spending more than I earn?"]},
+  {category:"Spending",icon:"↓",color:"#FF9500",questions:["What's my biggest expense?","How much on dining?","How much on groceries?","How much on transport?"]},
+  {category:"Budgets",icon:"◎",color:"#AF52DE",questions:["Any budgets over limit?","Set groceries budget to $400","Set dining budget to $300"]},
+  {category:"Accounts",icon:"▣",color:"#34C759",questions:["Show all balances","What's my net worth?","Total income this month?"]},
+  {category:"Transactions",icon:"≡",color:"#5AC8FA",questions:["Recent transactions","Add $50 dining expense","Add $3200 income"]},
+  {category:"Advice",icon:"✦",color:"#FF2D55",questions:["Tips to save money","Where should I cut back?"]},
+];
+
+function AIAssistant({categories,transactions,budgets,accounts,onAction,t}) {
+  const [messages,setMessages]=useState([{role:"assistant",text:"Hey! I'm Dex. Pick a topic or type your own question."}]);
+  const [input,setInput]=useState(""),[typing,setTyping]=useState(false),[view,setView]=useState("home"),[activeCategory,setActiveCategory]=useState(null);
+  const bottomRef=useRef(null);
+  useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:"smooth"});},[messages,typing]);
+  function askQuestion(text){
+    setView("chat");setMessages(p=>[...p,{role:"user",text}]);setInput("");setTyping(true);
+    setTimeout(()=>{const r=rockyThink(text,{categories,transactions,budgets,accounts,onAction});setTyping(false);setMessages(p=>[...p,{role:"assistant",text:r.text}]);},350+Math.random()*250);
+  }
+  function send(){const text=input.trim();if(!text||typing)return;askQuestion(text);}
+  const iStyle=makeIS(t);
+  const InputBar=()=>(
+    <div style={{display:"flex",gap:8,paddingTop:10,borderTop:`1px solid ${t.separator}`}}>
+      <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&send()} placeholder="Or type anything…" style={{...iStyle,flex:1,padding:"12px 14px",borderRadius:20,fontSize:15}}/>
+      <button onClick={send} disabled={!input.trim()} style={{background:"#007AFF",border:"none",borderRadius:"50%",width:44,height:44,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",opacity:!input.trim()?.4:1,flexShrink:0}}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M22 2L11 13" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/><path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+      </button>
+    </div>
+  );
+  if(view==="home")return(
+    <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
+      <div style={{overflowY:"auto",flex:1}}>
+        <div style={{display:"flex",alignItems:"center",gap:12,padding:"4px 0 16px"}}>
+          <div style={{width:44,height:44,borderRadius:"50%",background:"linear-gradient(135deg,#007AFF,#5856D6)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><SparkleIcon/></div>
+          <div style={{background:t.pillBg,borderRadius:"18px 18px 18px 4px",padding:"10px 14px",fontSize:14,color:t.text,lineHeight:1.4}}>Pick a topic or type your own question.</div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+          {DEX_QS.map((cat,i)=>(
+            <button key={i} onClick={()=>{setActiveCategory(cat);setView("category");}} style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:14,padding:"14px 12px",display:"flex",flexDirection:"column",gap:8,cursor:"pointer",textAlign:"left",boxShadow:t.shadow}}>
+              <div style={{width:32,height:32,borderRadius:9,background:cat.color+"20",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:14,color:cat.color,fontWeight:700}}>{cat.icon}</span></div>
+              <div><div style={{fontSize:14,fontWeight:600,color:t.text}}>{cat.category}</div><div style={{fontSize:11,color:t.label,marginTop:1}}>{cat.questions.length} questions</div></div>
+            </button>
+          ))}
+        </div>
+      </div>
+      <InputBar/>
+    </div>
+  );
+  if(view==="category"&&activeCategory)return(
+    <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+        <button onClick={()=>setView("home")} style={{background:t.pillBg,border:"none",borderRadius:10,padding:"7px 12px",fontSize:13,fontWeight:600,color:"#007AFF",cursor:"pointer",display:"flex",alignItems:"center",gap:5}}><svg width="8" height="13" viewBox="0 0 8 13" fill="none"><path d="M7 1L1 6.5L7 12" stroke="#007AFF" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>Back</button>
+        <span style={{fontSize:16,fontWeight:600,color:t.text}}>{activeCategory.category}</span>
+      </div>
+      <div style={{flex:1,overflowY:"auto"}}>
+        <div style={{background:t.card,borderRadius:14,overflow:"hidden",boxShadow:t.shadow}}>
+          {activeCategory.questions.map((q,i)=>(
+            <button key={i} onClick={()=>askQuestion(q)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"15px 16px",background:"none",border:"none",borderTop:i===0?"none":`1px solid ${t.separator}`,cursor:"pointer",textAlign:"left",gap:10}}>
+              <span style={{fontSize:15,color:t.text,lineHeight:1.3}}>{q}</span>
+              <svg width="8" height="13" viewBox="0 0 8 13" fill="none" style={{flexShrink:0}}><path d="M1 1L7 6.5L1 12" stroke={t.label} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </button>
+          ))}
+        </div>
+      </div>
+      <InputBar/>
+    </div>
+  );
+  return(
+    <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+        <button onClick={()=>setView("home")} style={{background:t.pillBg,border:"none",borderRadius:10,padding:"6px 12px",fontSize:13,fontWeight:600,color:"#007AFF",cursor:"pointer",display:"flex",alignItems:"center",gap:5}}><svg width="8" height="13" viewBox="0 0 8 13" fill="none"><path d="M7 1L1 6.5L7 12" stroke="#007AFF" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>Questions</button>
+        <span style={{fontSize:13,color:t.label}}>Dex</span>
+      </div>
+      <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",gap:10,paddingBottom:8}}>
+        {messages.map((m,i)=>(
+          <div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start",alignItems:"flex-end",gap:8}}>
+            {m.role==="assistant"&&<div style={{width:28,height:28,borderRadius:"50%",background:"linear-gradient(135deg,#007AFF,#5856D6)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginBottom:2}}><SparkleIcon/></div>}
+            <div style={{maxWidth:"78%",padding:"11px 14px",borderRadius:m.role==="user"?"18px 18px 4px 18px":"18px 18px 18px 4px",background:m.role==="user"?"#007AFF":t.pillBg,color:m.role==="user"?"#fff":t.text,fontSize:15,lineHeight:1.5,whiteSpace:"pre-wrap"}}>{m.text}</div>
+          </div>
+        ))}
+        {typing&&<div style={{display:"flex",alignItems:"flex-end",gap:8}}><div style={{width:28,height:28,borderRadius:"50%",background:"linear-gradient(135deg,#007AFF,#5856D6)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><SparkleIcon/></div><div style={{background:t.pillBg,borderRadius:"18px 18px 18px 4px",padding:"13px 16px",display:"flex",gap:5,alignItems:"center"}}>{[0,1,2].map(i=><div key={i} style={{width:7,height:7,borderRadius:"50%",background:t.handle,animation:`dot .9s ${i*.2}s infinite ease-in-out`}}/>)}</div></div>}
+        <div ref={bottomRef}/>
+      </div>
+      <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:8}}>
+        {["More tips","Show accounts","Recent transactions","Budget status"].map((s,i)=><button key={i} onClick={()=>askQuestion(s)} style={{background:t.pillBg,border:"none",borderRadius:20,padding:"6px 12px",fontSize:12,color:"#007AFF",cursor:"pointer",fontWeight:500}}>{s}</button>)}
+      </div>
+      <InputBar/>
+    </div>
+  );
+}
+
+// ─── Plaid Connect Modal ──────────────────────────────────────────────────────
+function PlaidModal({show,onClose,onConnect,t,backendUrl}) {
+  const [step,setStep]=useState("setup");
+  const [serverOk,setServerOk]=useState(null);
+  const [checking,setChecking]=useState(false);
+  const [errorMsg,setErrorMsg]=useState("");
+  const [loadingMsg,setLoadingMsg]=useState("");
+
+  async function checkServer(url){
+    setChecking(true);setServerOk(null);
+    try{const r=await fetch(`${url}/health`,{signal:AbortSignal.timeout(5000)});const d=await r.json();setServerOk(d.status==="ok");}catch{setServerOk(false);}
+    setChecking(false);
+  }
+  async function startLink(){
+    setStep("loading");setLoadingMsg("Connecting to Plaid…");
+    try{
+      const r=await fetch(`${backendUrl}/api/create-link-token`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({userId:"ledger-user"})});
+      const d=await r.json();if(!d.link_token)throw new Error(d.error||"No link token");
+      setStep("sandbox");
+    }catch(e){setErrorMsg(e.message);setStep("error");}
+  }
+  async function connectSandbox(){
+    setStep("loading");setLoadingMsg("Authorising with bank…");
+    try{
+      const publicToken="public-sandbox-b0e2c4ee-a763-4df5-bfe9-46a46bce993d";
+      const ex=await fetch(`${backendUrl}/api/exchange-token`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({publicToken,userId:"ledger-user"})});
+      const exd=await ex.json();if(!exd.success)throw new Error(exd.error||"Exchange failed");
+      setLoadingMsg("Fetching accounts…");
+      const ac=await fetch(`${backendUrl}/api/accounts?userId=ledger-user`);const acd=await ac.json();if(!acd.accounts)throw new Error(acd.error||"No accounts");
+      setLoadingMsg("Importing transactions…");
+      const tx=await fetch(`${backendUrl}/api/transactions?userId=ledger-user&days=30`);const txd=await tx.json();
+      setStep("success");onConnect(acd.accounts,txd.transactions||[]);
+    }catch(e){setErrorMsg(e.message);setStep("error");}
+  }
+  function reset(){setStep("setup");setServerOk(null);setErrorMsg("");}
+  if(!show)return null;
+  return(
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.55)",backdropFilter:"blur(12px)",zIndex:600,display:"flex",alignItems:"flex-end"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:t.sheet,borderRadius:"22px 22px 0 0",width:"100%",maxHeight:"88vh",animation:"sheetUp .28s cubic-bezier(.32,.72,0,1)",display:"flex",flexDirection:"column",paddingBottom:"env(safe-area-inset-bottom,16px)"}}>
+        <div style={{display:"flex",justifyContent:"center",padding:"10px 0 4px"}}><div style={{width:36,height:4,borderRadius:2,background:t.handle}}/></div>
+        <div style={{padding:"4px 20px 14px",borderBottom:`1px solid ${t.separator}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <div style={{background:"#000",borderRadius:8,padding:"5px 10px",display:"flex",alignItems:"center",gap:5}}><div style={{width:7,height:7,borderRadius:1.5,background:"#fff"}}/><span style={{color:"#fff",fontSize:14,fontWeight:700}}>plaid</span></div>
+            <span style={{color:t.label,fontSize:13}}>Bank Connection</span>
+          </div>
+          <button onClick={onClose} style={{background:t.pillBg,border:"none",borderRadius:"50%",width:28,height:28,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:13,color:t.sub,fontWeight:600}}>✕</button>
+        </div>
+        <div style={{overflowY:"auto",flex:1,padding:"16px 20px 8px"}}>
+          {step==="setup"&&(
+            <div>
+              <div style={{fontSize:17,fontWeight:600,color:t.text,marginBottom:6}}>Connect your backend</div>
+              <div style={{fontSize:14,color:t.label,marginBottom:18,lineHeight:1.5}}>Your PocketBook backend must be running first. Check the README for setup instructions.</div>
+              <div style={{marginBottom:12}}>
+                <div style={{fontSize:12,fontWeight:600,color:t.label,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6}}>Backend URL</div>
+                <div style={{display:"flex",gap:8}}>
+                  <div style={{flex:1,padding:"12px 14px",borderRadius:12,border:`1px solid ${t.inputBorder}`,fontSize:14,fontFamily:"monospace",color:t.text,background:t.input}}>{backendUrl}</div>
+                  <button onClick={()=>checkServer(backendUrl)} style={{background:t.pillBg,border:"none",borderRadius:12,padding:"0 14px",fontSize:13,fontWeight:600,color:"#007AFF",cursor:"pointer",flexShrink:0}}>{checking?"…":"Test"}</button>
+                </div>
+                {serverOk===true&&<div style={{marginTop:6,fontSize:12,color:"#34C759"}}>✓ Server is running</div>}
+                {serverOk===false&&<div style={{marginTop:6,fontSize:12,color:"#FF3B30"}}>✗ Can't reach server — make sure it's running on port 3001</div>}
+              </div>
+              <div style={{background:t.input,borderRadius:12,padding:14,marginBottom:18}}>
+                <div style={{fontSize:13,fontWeight:600,color:t.text,marginBottom:10}}>Quick start</div>
+                {["Sign up free at plaid.com/signup","Add your keys to ledger-backend/.env","Run: cd ledger-backend && npm install && npm start","Tap Test above"].map((s,i)=>(
+                  <div key={i} style={{display:"flex",gap:10,marginBottom:i<3?8:0,alignItems:"flex-start"}}>
+                    <div style={{width:20,height:20,borderRadius:"50%",background:"#007AFF",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:1}}><span style={{fontSize:11,fontWeight:700,color:"#fff"}}>{i+1}</span></div>
+                    <span style={{fontSize:13,color:t.sub,lineHeight:1.4}}>{s}</span>
+                  </div>
+                ))}
+              </div>
+              <button onClick={startLink} disabled={serverOk!==true} style={{width:"100%",background:serverOk===true?"#007AFF":"#8e8e93",border:"none",borderRadius:14,padding:15,fontSize:16,fontWeight:600,color:"#fff",cursor:serverOk===true?"pointer":"default"}}>Continue with Plaid</button>
+            </div>
+          )}
+          {step==="sandbox"&&(
+            <div>
+              <div style={{fontSize:17,fontWeight:600,color:t.text,marginBottom:6}}>Sandbox Mode</div>
+              <div style={{fontSize:14,color:t.label,marginBottom:16,lineHeight:1.5}}>Use these test credentials to connect a fake bank with realistic data.</div>
+              {[{label:"Username",val:"user_good"},{label:"Password",val:"pass_good"}].map((f,i)=>(
+                <div key={i} style={{background:t.input,borderRadius:12,padding:"13px 15px",marginBottom:10}}>
+                  <div style={{fontSize:12,color:t.label,marginBottom:4}}>{f.label}</div>
+                  <div style={{fontSize:15,color:t.text,fontFamily:"monospace"}}>{f.val}</div>
+                </div>
+              ))}
+              <div style={{background:"#34C75918",borderRadius:10,padding:"11px 13px",marginBottom:18,display:"flex",gap:8}}>
+                <span style={{color:"#34C759",flexShrink:0}}>🔒</span>
+                <span style={{fontSize:12,color:t.sub,lineHeight:1.5}}>In production, Plaid's secure UI handles login — PocketBook never sees real credentials.</span>
+              </div>
+              <div style={{display:"flex",gap:10}}>
+                <button onClick={reset} style={{flex:1,background:t.secondaryBtn,border:"none",borderRadius:12,padding:13,fontSize:15,fontWeight:600,color:t.secondaryText,cursor:"pointer"}}>Back</button>
+                <button onClick={connectSandbox} style={{flex:2,background:"#007AFF",border:"none",borderRadius:12,padding:13,fontSize:16,fontWeight:600,color:"#fff",cursor:"pointer"}}>Connect Sandbox Bank</button>
+              </div>
+            </div>
+          )}
+          {step==="loading"&&(
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"32px 0",gap:16}}>
+              <div style={{width:48,height:48,borderRadius:"50%",border:"3px solid #007AFF",borderTopColor:"transparent",animation:"spin .8s linear infinite"}}/>
+              <div style={{fontSize:15,color:t.text,fontWeight:500}}>{loadingMsg}</div>
+            </div>
+          )}
+          {step==="success"&&(
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"24px 0",gap:12,textAlign:"center"}}>
+              <div style={{width:56,height:56,borderRadius:"50%",background:"#34C75920",display:"flex",alignItems:"center",justifyContent:"center"}}><svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17L4 12" stroke="#34C759" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg></div>
+              <div style={{fontSize:18,fontWeight:700,color:t.text}}>Connected!</div>
+              <div style={{fontSize:14,color:t.label,lineHeight:1.5}}>Your accounts and transactions have been imported.</div>
+              <button onClick={()=>{reset();onClose();}} style={{marginTop:8,width:"100%",background:"#007AFF",border:"none",borderRadius:14,padding:14,fontSize:16,fontWeight:600,color:"#fff",cursor:"pointer"}}>Done</button>
+            </div>
+          )}
+          {step==="error"&&(
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"24px 0",gap:12,textAlign:"center"}}>
+              <div style={{width:56,height:56,borderRadius:"50%",background:"#FF3B3018",display:"flex",alignItems:"center",justifyContent:"center"}}><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 8v5m0 3v.5" stroke="#FF3B30" strokeWidth="2.2" strokeLinecap="round"/><circle cx="12" cy="12" r="9" stroke="#FF3B30" strokeWidth="1.8"/></svg></div>
+              <div style={{fontSize:17,fontWeight:700,color:t.text}}>Something went wrong</div>
+              <div style={{fontSize:13,color:"#FF3B30",fontFamily:"monospace",background:t.input,padding:"10px 14px",borderRadius:10,width:"100%",textAlign:"left",wordBreak:"break-all"}}>{errorMsg}</div>
+              <button onClick={reset} style={{width:"100%",background:"#007AFF",border:"none",borderRadius:14,padding:14,fontSize:16,fontWeight:600,color:"#fff",cursor:"pointer"}}>Try Again</button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main App ─────────────────────────────────────────────────────────────────
+function App() {
+  // Persistent state
+  const [locked,setLocked]=useState(true);
+  const [savedPin,setSavedPin]=useState(()=>load("ledger_pin",null));
+  const [themeKey,setThemeKey]=useState(()=>load("ledger_theme","dark"));
+  const [categories,setCategories]=useState(()=>load("ledger_cats",DEFAULT_CATEGORIES));
+  const [transactions,setTransactions]=useState(()=>load("ledger_txns",INIT_TXN));
+  const [budgets,setBudgets]=useState(()=>load("ledger_budgets",INIT_BUDGETS));
+  const [accounts,setAccounts]=useState(()=>load("ledger_accounts",INIT_ACCOUNTS));
+  const [backendUrl,setBackendUrl]=useState(()=>load("ledger_backend_url","http://localhost:3001"));
+  const [currency,setCurrency]=useState(()=>load("ledger_currency","USD ($)"));
+  const [notifs,setNotifs]=useState(()=>load("ledger_notifs",true));
+  const [budgetAlerts,setBudgetAlerts]=useState(()=>load("ledger_budget_alerts",true));
+  const [weeklyDigest,setWeeklyDigest]=useState(()=>load("ledger_weekly",false));
+  const [biometrics,setBiometrics]=useState(()=>load("ledger_biometrics",true));
+  const [autoSync,setAutoSync]=useState(()=>load("ledger_autosync",true));
+  const [userName,setUserName]=useState(()=>load("ledger_username","Jordan Lee"));
+  const [userEmail,setUserEmail]=useState(()=>load("ledger_email","jordan@example.com"));
+
+  // Persist changes
+  useEffect(()=>save("ledger_pin",savedPin),[savedPin]);
+  useEffect(()=>save("ledger_theme",themeKey),[themeKey]);
+  useEffect(()=>save("ledger_cats",categories),[categories]);
+  useEffect(()=>save("ledger_txns",transactions),[transactions]);
+  useEffect(()=>save("ledger_budgets",budgets),[budgets]);
+  useEffect(()=>save("ledger_accounts",accounts),[accounts]);
+  useEffect(()=>save("ledger_backend_url",backendUrl),[backendUrl]);
+  useEffect(()=>save("ledger_currency",currency),[currency]);
+  useEffect(()=>save("ledger_notifs",notifs),[notifs]);
+  useEffect(()=>save("ledger_biometrics",biometrics),[biometrics]);
+  useEffect(()=>save("ledger_autosync",autoSync),[autoSync]);
+  useEffect(()=>save("ledger_username",userName),[userName]);
+  useEffect(()=>save("ledger_email",userEmail),[userEmail]);
+
+  const [tab,setTab]=useState("home");
+  const [sheet,setSheet]=useState(null);
+  const [editCat,setEditCat]=useState(null);
+  const [editAccount,setEditAccount]=useState(null);
+  const [budgetTarget,setBudgetTarget]=useState(null);
+  const [showPlaid,setShowPlaid]=useState(false);
+  const [newTxn,setNewTxn]=useState({name:"",amount:"",category:"",date:new Date().toISOString().slice(0,10),account:"",type:"expense"});
+  const [newCat,setNewCat]=useState({name:"",color:COLOR_OPTIONS[0]});
+  const [newAcct,setNewAcct]=useState({name:"",type:"Checking",balance:"",institution:"",last4:""});
+  const [budgetVal,setBudgetVal]=useState("");
+  const [search,setSearch]=useState("");
+  const [toast,setToast]=useState(null);
+  const [editBackendUrl,setEditBackendUrl]=useState(backendUrl);
+
+  const t=T[themeKey];
+  const iStyle=makeIS(t);
+  const netWorth=accounts.reduce((a,b)=>a+b.balance,0);
+  const income=transactions.filter(tx=>tx.amount>0).reduce((a,tx)=>a+tx.amount,0);
+  const expenses=transactions.filter(tx=>tx.amount<0).reduce((a,tx)=>a+Math.abs(tx.amount),0);
+  const catMap=Object.fromEntries(categories.map(c=>[c.id,c]));
+  const spendByCat=categories.map(c=>({...c,value:transactions.filter(tx=>tx.category===c.id&&tx.amount<0).reduce((a,tx)=>a+Math.abs(tx.amount),0)})).filter(c=>c.value>0).sort((a,b)=>b.value-a.value);
+  const filtered=transactions.filter(tx=>tx.name.toLowerCase().includes(search.toLowerCase())||(catMap[tx.category]?.name||"").toLowerCase().includes(search.toLowerCase())).sort((a,b)=>b.date.localeCompare(a.date));
+  const history=useMemo(()=>generateHistory(netWorth),[netWorth]);
+
+  function showToast(msg){setToast(msg);setTimeout(()=>setToast(null),2400);}
+  function addTxn(){const amt=parseFloat(newTxn.amount);if(!newTxn.name||isNaN(amt)||!newTxn.category)return;setTransactions(p=>[{...newTxn,id:Date.now(),amount:newTxn.type==="income"?Math.abs(amt):-Math.abs(amt),account:newTxn.account||accounts[0]?.name||""},...p]);setNewTxn({name:"",amount:"",category:"",date:new Date().toISOString().slice(0,10),account:"",type:"expense"});setSheet(null);showToast("Transaction added");}
+  function addCat(){const name=newCat.name.trim();if(!name)return;const id=name.toLowerCase().replace(/\s+/g,"_")+"_"+Date.now();setCategories(p=>[...p,{id,name,color:newCat.color}]);setBudgets(p=>[...p,{id,limit:0}]);setNewCat({name:"",color:COLOR_OPTIONS[0]});setSheet(null);showToast(`"${name}" added`);}
+  function saveEditCat(){setCategories(p=>p.map(c=>c.id===editCat.id?{...c,name:editCat.name,color:editCat.color}:c));setSheet(null);setEditCat(null);showToast("Category updated");}
+  function deleteCat(id){setCategories(p=>p.filter(c=>c.id!==id));setBudgets(p=>p.filter(b=>b.id!==id));showToast("Category deleted");}
+  function saveBudget(){const v=parseFloat(budgetVal);if(isNaN(v))return;setBudgets(p=>p.map(b=>b.id===budgetTarget?{...b,limit:v}:b));setSheet(null);setBudgetVal("");showToast("Budget updated");}
+  function addAccount(){const bal=parseFloat(newAcct.balance);if(!newAcct.name||isNaN(bal))return;setAccounts(p=>[...p,{...newAcct,id:Date.now(),balance:bal,plaid:false}]);setNewAcct({name:"",type:"Checking",balance:"",institution:"",last4:""});setSheet(null);showToast("Account added");}
+  function saveEditAccount(){const bal=parseFloat(editAccount.balance);setAccounts(p=>p.map(a=>a.id===editAccount.id?{...editAccount,balance:isNaN(bal)?a.balance:bal}:a));setSheet(null);setEditAccount(null);showToast("Account updated");}
+  function deleteAccount(id){setAccounts(p=>p.filter(a=>a.id!==id));showToast("Account removed");}
+  function handlePlaidConnect(newAccounts,newTxns=[]){
+    setAccounts(p=>[...p,...newAccounts.map(a=>({...a,id:a.id||Date.now()+Math.random()}))]);
+    if(newTxns.length>0)setTransactions(p=>[...newTxns.map(tx=>({...tx,id:tx.id||Date.now()+Math.random()})),...p]);
+    showToast(`${newAccounts.length} accounts + ${newTxns.length} transactions imported`);
+  }
+  function handleAIAction(action){
+    if(action.type==="add_transaction"){const s=action.txnType==="income"?Math.abs(action.amount):-Math.abs(action.amount);setTransactions(p=>[{id:Date.now(),name:action.name,category:action.category,amount:s,date:action.date||new Date().toISOString().slice(0,10),account:action.account||accounts[0]?.name||""},...p]);showToast(`Added: ${action.name}`);}
+    else if(action.type==="set_budget"){setBudgets(p=>p.map(b=>b.id===action.categoryId?{...b,limit:action.limit}:b));showToast("Budget updated");}
+  }
+  function exportCSV(){
+    const rows=[["Date","Name","Category","Amount","Account"],...transactions.map(tx=>[tx.date,`"${tx.name}"`,catMap[tx.category]?.name||tx.category,tx.amount,`"${tx.account}"`])];
+    const csv=rows.map(r=>r.join(",")).join("\n");
+    const a=document.createElement("a");a.href="data:text/csv;charset=utf-8,"+encodeURIComponent(csv);a.download="ledger-transactions.csv";a.click();
+    showToast("CSV downloaded");
+  }
+
+  const TABS=[{id:"home",label:"Home",icon:<HomeIcon/>},{id:"accounts",label:"Accounts",icon:<CardIcon/>},{id:"txns",label:"Transfers",icon:<ListIcon/>},{id:"budgets",label:"Budgets",icon:<ChartIcon/>},{id:"settings",label:"Settings",icon:<GearIcon/>}];
+
+  return (
+    <>
+      {locked&&<LockScreen onUnlock={()=>setLocked(false)} savedPin={savedPin} onSavePin={v=>{setSavedPin(v);save("ledger_pin",v);}}/>}
+      <div style={{height:"100dvh",background:t.bg,fontFamily:SF,display:"flex",flexDirection:"column",maxWidth:480,margin:"0 auto",position:"relative",overflow:"hidden",transition:"background .2s"}}>
+
+        {/* Status bar spacer */}
+        <div style={{height:"env(safe-area-inset-top,44px)",background:t.header,flexShrink:0}}/>
+
+        {/* Header */}
+        <div style={{background:t.header,backdropFilter:"blur(20px)",borderBottom:`1px solid ${t.border}`,padding:"10px 18px",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <span style={{fontSize:22,fontWeight:700,color:"#007AFF",letterSpacing:"-0.5px"}}>PocketBook</span>
+          <button onClick={()=>setLocked(true)} style={{background:t.pillBg,border:"none",borderRadius:10,padding:"7px 12px",fontSize:13,fontWeight:500,color:t.label,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
+            <svg width="13" height="14" viewBox="0 0 13 14" fill="none"><rect x="1" y="6" width="11" height="8" rx="2" stroke="currentColor" strokeWidth="1.5"/><path d="M3.5 6V4.5a3 3 0 0 1 6 0V6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>Lock
+          </button>
+        </div>
+
+        {/* Scrollable content */}
+        <div style={{flex:1,overflowY:"auto",paddingBottom:"calc(env(safe-area-inset-bottom,0px) + 72px)"}}>
+
+          {/* HOME */}
+          {tab==="home"&&(
+            <div className="fu" style={{padding:"16px 16px 0"}}>
+              <div style={{background:"linear-gradient(145deg,#007AFF,#5856D6)",borderRadius:20,padding:"22px",marginBottom:14,boxShadow:"0 4px 24px rgba(0,122,255,.28)"}}>
+                <div style={{fontSize:12,fontWeight:600,color:"rgba(255,255,255,.7)",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:3}}>Net Worth</div>
+                <div style={{fontSize:36,fontWeight:700,color:"#fff",letterSpacing:"-0.8px",marginBottom:16}}>${fmt(netWorth)}</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                  <div style={{background:"rgba(255,255,255,.14)",borderRadius:12,padding:"10px 13px"}}><div style={{fontSize:11,color:"rgba(255,255,255,.7)",marginBottom:2}}>Income</div><div style={{fontSize:18,fontWeight:700,color:"#fff"}}>${fmt(income)}</div></div>
+                  <div style={{background:"rgba(255,255,255,.14)",borderRadius:12,padding:"10px 13px"}}><div style={{fontSize:11,color:"rgba(255,255,255,.7)",marginBottom:2}}>Spending</div><div style={{fontSize:18,fontWeight:700,color:"#fff"}}>${fmt(expenses)}</div></div>
+                </div>
+              </div>
+              <NetWorthChart allData={history} t={t}/>
+              {spendByCat.length>0&&<SpendingBreakdown spendByCat={spendByCat} budgets={budgets} expenses={expenses} t={t} onSetBudget={(catId,limit)=>{setBudgetTarget(catId);setBudgetVal(String(limit||""));setSheet("budget");}}/>}
+              <div style={{background:t.card,borderRadius:18,marginBottom:14,boxShadow:t.shadow,overflow:"hidden"}}>
+                <div style={{padding:"16px 16px 10px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <span style={{fontSize:15,fontWeight:600,color:t.text}}>Recent</span>
+                  <button onClick={()=>setTab("txns")} style={{background:"none",border:"none",fontSize:14,color:"#007AFF",cursor:"pointer",fontWeight:500}}>See all</button>
+                </div>
+                {transactions.slice(0,5).map((tx,i)=>{const cat=catMap[tx.category];return(
+                  <div key={tx.id} className="rh" style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"11px 16px",borderTop:`1px solid ${t.separator}`}}>
+                    <div style={{display:"flex",alignItems:"center",gap:11,minWidth:0}}>
+                      <div style={{width:36,height:36,borderRadius:10,background:cat?cat.color+"22":"#88888818",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><div style={{width:11,height:11,borderRadius:3,background:cat?.color||"#8e8e93"}}/></div>
+                      <div style={{minWidth:0}}><div style={{fontSize:14,fontWeight:500,color:t.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{tx.name}</div><div style={{fontSize:12,color:t.label,marginTop:1}}>{cat?.name||tx.category}</div></div>
+                    </div>
+                    <div style={{fontSize:15,fontWeight:600,color:tx.amount>0?"#34C759":t.text,flexShrink:0,marginLeft:10}}>{tx.amount>0?"+":"-"}${fmt(tx.amount)}</div>
+                  </div>
+                );})}
+              </div>
+              <button onClick={()=>setSheet("addTxn")} style={{width:"100%",background:"#007AFF",border:"none",borderRadius:14,padding:15,fontSize:16,fontWeight:600,color:"#fff",cursor:"pointer",marginBottom:4}}>+ Add Transaction</button>
+            </div>
+          )}
+
+          {/* ACCOUNTS */}
+          {tab==="accounts"&&(
+            <div className="fu" style={{padding:"16px 16px 0"}}>
+              <button onClick={()=>setShowPlaid(true)} style={{width:"100%",background:themeKey==="light"?"#000":"#f2f2f7",border:"none",borderRadius:14,padding:14,fontSize:15,fontWeight:600,color:themeKey==="light"?"#fff":"#000",cursor:"pointer",marginBottom:10,display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
+                <div style={{background:themeKey==="light"?"#fff":"#000",borderRadius:5,padding:"3px 7px",display:"flex",alignItems:"center",gap:4}}><div style={{width:6,height:6,borderRadius:1.5,background:themeKey==="light"?"#000":"#fff"}}/><span style={{color:themeKey==="light"?"#000":"#fff",fontSize:12,fontWeight:700}}>plaid</span></div>
+                Connect a Real Bank Account
+              </button>
+              <button onClick={()=>{setNewAcct({name:"",type:"Checking",balance:"",institution:"",last4:""});setSheet("addAcct");}} style={{width:"100%",background:t.secondaryBtn,border:"none",borderRadius:14,padding:13,fontSize:15,fontWeight:600,color:t.secondaryText,cursor:"pointer",marginBottom:14}}>+ Add Account Manually</button>
+              {accounts.map(a=>(
+                <div key={a.id} style={{background:t.card,borderRadius:18,padding:"18px",marginBottom:10,boxShadow:t.shadow}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:2}}>
+                        <div style={{fontSize:12,fontWeight:600,color:t.label,textTransform:"uppercase",letterSpacing:"0.06em"}}>{a.institution||"Manual"}</div>
+                        {a.plaid&&<div style={{background:"#000",borderRadius:4,padding:"1px 5px"}}><span style={{color:"#fff",fontSize:9,fontWeight:700}}>plaid</span></div>}
+                      </div>
+                      <div style={{fontSize:16,fontWeight:600,color:t.text}}>{a.name}</div>
+                    </div>
+                    <div style={{display:"flex",gap:6}}>
+                      <button onClick={()=>{setEditAccount({...a,balance:String(a.balance)});setSheet("editAcct");}} style={{background:t.pillBg,border:"none",borderRadius:8,padding:"5px 10px",fontSize:12,fontWeight:500,color:t.sub,cursor:"pointer"}}>Edit</button>
+                      <button onClick={()=>deleteAccount(a.id)} style={{background:"#FF3B3015",border:"none",borderRadius:8,padding:"5px 10px",fontSize:12,fontWeight:500,color:"#FF3B30",cursor:"pointer"}}>Remove</button>
+                    </div>
+                  </div>
+                  <div style={{fontSize:30,fontWeight:700,letterSpacing:"-0.6px",color:a.balance<0?"#FF3B30":t.text,marginBottom:6}}>{a.balance<0?"-":""}${fmt(a.balance)}</div>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <div style={{fontSize:13,color:t.label}}>{a.last4?`···· ${a.last4}`:""}</div>
+                    <div style={{background:t.pillBg,borderRadius:8,padding:"3px 9px",fontSize:11,fontWeight:500,color:t.pillText}}>{a.type}</div>
+                  </div>
+                </div>
+              ))}
+              {accounts.length>0&&<div style={{background:t.card,borderRadius:14,padding:"14px 18px",marginBottom:12,boxShadow:t.shadow,display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontSize:15,fontWeight:500,color:t.sub}}>Total Net Worth</span><span style={{fontSize:22,fontWeight:700,color:"#007AFF",letterSpacing:"-0.3px"}}>${fmt(netWorth)}</span></div>}
+            </div>
+          )}
+
+          {/* TRANSACTIONS */}
+          {tab==="txns"&&(
+            <div className="fu" style={{padding:"16px 16px 0"}}>
+              <input placeholder="Search transactions…" value={search} onChange={e=>setSearch(e.target.value)} style={{...iStyle,marginBottom:12}}/>
+              <div style={{background:t.card,borderRadius:18,overflow:"hidden",boxShadow:t.shadow,marginBottom:12}}>
+                {filtered.length===0&&<div style={{padding:"36px 0",textAlign:"center",fontSize:14,color:t.label}}>No transactions found</div>}
+                {filtered.map((tx,i)=>{const cat=catMap[tx.category];return(
+                  <div key={tx.id} className="rh" style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"13px 16px",borderTop:i===0?"none":`1px solid ${t.separator}`}}>
+                    <div style={{display:"flex",alignItems:"center",gap:11,minWidth:0}}>
+                      <div style={{width:36,height:36,borderRadius:10,background:cat?cat.color+"22":"#88888818",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><div style={{width:11,height:11,borderRadius:3,background:cat?.color||"#8e8e93"}}/></div>
+                      <div style={{minWidth:0}}><div style={{fontSize:14,fontWeight:500,color:t.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{tx.name}</div><div style={{fontSize:12,color:t.label,marginTop:1}}>{cat?.name||tx.category} · {tx.date}</div></div>
+                    </div>
+                    <div style={{fontSize:15,fontWeight:600,color:tx.amount>0?"#34C759":t.text,flexShrink:0,marginLeft:10}}>{tx.amount>0?"+":"-"}${fmt(tx.amount)}</div>
+                  </div>
+                );})}
+              </div>
+              <button onClick={()=>setSheet("addTxn")} style={{width:"100%",background:"#007AFF",border:"none",borderRadius:14,padding:15,fontSize:16,fontWeight:600,color:"#fff",cursor:"pointer",marginBottom:4}}>+ Add Transaction</button>
+            </div>
+          )}
+
+          {/* BUDGETS */}
+          {tab==="budgets"&&(
+            <div className="fu" style={{padding:"16px 16px 0"}}>
+              <button onClick={()=>{setNewCat({name:"",color:COLOR_OPTIONS[0]});setSheet("cats");}} style={{width:"100%",background:t.secondaryBtn,border:"none",borderRadius:14,padding:13,fontSize:15,fontWeight:600,color:t.secondaryText,cursor:"pointer",marginBottom:12}}>Manage Categories</button>
+              {categories.filter(c=>c.id!=="income").map(cat=>{
+                const b=budgets.find(b=>b.id===cat.id),spent=transactions.filter(tx=>tx.category===cat.id&&tx.amount<0).reduce((a,tx)=>a+Math.abs(tx.amount),0),limit=b?.limit||0,pct=limit>0?Math.min((spent/limit)*100,100):0,over=limit>0&&spent>limit;
+                return(
+                  <div key={cat.id} style={{background:t.card,borderRadius:16,padding:"16px 18px",marginBottom:10,boxShadow:t.shadow}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                      <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:9,height:9,borderRadius:2.5,background:cat.color}}/><span style={{fontSize:15,fontWeight:600,color:t.text}}>{cat.name}</span>{over&&<span style={{fontSize:11,fontWeight:600,color:"#FF3B30",background:"#FF3B3018",borderRadius:5,padding:"2px 7px"}}>Over</span>}</div>
+                      <button onClick={()=>{setBudgetTarget(cat.id);setBudgetVal(String(limit||""));setSheet("budget");}} style={{fontSize:13,fontWeight:500,color:"#007AFF",background:"none",border:"none",cursor:"pointer"}}>Set limit</button>
+                    </div>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:8}}><span style={{fontSize:22,fontWeight:700,color:over?"#FF3B30":t.text,letterSpacing:"-0.3px"}}>${spent.toFixed(0)}</span><span style={{fontSize:13,color:t.label}}>of {limit>0?`$${limit}`:"—"}</span></div>
+                    <div style={{height:5,background:t.input,borderRadius:99,overflow:"hidden"}}><div style={{height:"100%",width:`${pct}%`,background:over?"#FF3B30":cat.color,borderRadius:99}}/></div>
+                    <div style={{marginTop:6,fontSize:12,color:t.label}}>{limit>0?(over?`$${(spent-limit).toFixed(0)} over budget`:`$${(limit-spent).toFixed(0)} remaining`):"No budget set"}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* SETTINGS */}
+          {tab==="settings"&&(
+            <div className="fu" style={{padding:"20px 16px 0"}}>
+              <div style={{background:"linear-gradient(145deg,#007AFF,#5856D6)",borderRadius:20,padding:"20px",marginBottom:24,display:"flex",alignItems:"center",gap:14}}>
+                <div style={{width:52,height:52,borderRadius:26,background:"rgba(255,255,255,.25)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{fontSize:22,fontWeight:700,color:"#fff"}}>{userName.charAt(0)}</span></div>
+                <div><div style={{fontSize:18,fontWeight:700,color:"#fff",letterSpacing:"-0.3px"}}>{userName}</div><div style={{fontSize:13,color:"rgba(255,255,255,.75)",marginTop:2}}>{userEmail}</div></div>
+              </div>
+
+              <Section label="Appearance" t={t}>
+                <SettingRow t={t} first last label="App Theme" sub={{light:"Light",dim:"Dim",dark:"Dark"}[themeKey]} icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="5" stroke="#fff" strokeWidth="2"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" stroke="#fff" strokeWidth="2" strokeLinecap="round"/></svg>} iconBg="#5856D6"
+                  right={<div style={{display:"flex",background:t.input,borderRadius:10,padding:3,gap:2}}>{["light","dim","dark"].map(k=><button key={k} onClick={()=>setThemeKey(k)} style={{background:themeKey===k?"#007AFF":"transparent",color:themeKey===k?"#fff":t.label,border:"none",borderRadius:7,padding:"5px 9px",fontSize:12,fontWeight:600,cursor:"pointer",transition:"all .15s",textTransform:"capitalize"}}>{k.charAt(0).toUpperCase()+k.slice(1)}</button>)}</div>}
+                />
+              </Section>
+
+              <Section label="Bank Connection" t={t}>
+                <SettingRow t={t} first label="Backend URL" sub={backendUrl} icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="2" y="2" width="20" height="8" rx="2" stroke="#fff" strokeWidth="1.8"/><rect x="2" y="14" width="20" height="8" rx="2" stroke="#fff" strokeWidth="1.8"/><path d="M6 6h.01M6 18h.01" stroke="#fff" strokeWidth="2" strokeLinecap="round"/></svg>} iconBg="#007AFF"
+                  right={<button onClick={()=>setSheet("backendUrl")} style={{fontSize:12,color:"#007AFF",background:"none",border:"none",cursor:"pointer",fontWeight:600}}>Edit</button>}
+                />
+                <SettingRow t={t} last label="Connect a Bank" sub="Link real accounts via Plaid" icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="2" y="5" width="20" height="14" rx="3" stroke="#fff" strokeWidth="1.8"/><path d="M2 10H22" stroke="#fff" strokeWidth="1.8"/></svg>} iconBg="#34C759" chevron onClick={()=>setShowPlaid(true)}/>
+              </Section>
+
+              <Section label="General" t={t}>
+                <SettingRow t={t} first label="Currency" sub={currency} icon={<span style={{color:"#fff",fontSize:14,fontWeight:700}}>$</span>} iconBg="#34C759" right={<select value={currency} onChange={e=>setCurrency(e.target.value)} style={{background:"transparent",border:"none",color:t.label,fontSize:13,cursor:"pointer",outline:"none"}}>{CURRENCIES.map(c=><option key={c} value={c}>{c}</option>)}</select>}/>
+                <SettingRow t={t} last label="Auto-Sync" sub="Refresh Plaid connections daily" icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 12a8 8 0 0 1 14-5.2M20 12a8 8 0 0 1-14 5.2" stroke="#fff" strokeWidth="2" strokeLinecap="round"/></svg>} iconBg="#007AFF" right={<Toggle value={autoSync} onChange={setAutoSync}/>}/>
+              </Section>
+
+              <Section label="Notifications" t={t}>
+                <SettingRow t={t} first label="Push Notifications" icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M15 17H9v1a3 3 0 0 0 6 0v-1zm-3-14a7 7 0 0 0-7 7v3l-1.5 2h17L19 13v-3a7 7 0 0 0-7-7z" stroke="#fff" strokeWidth="1.8"/></svg>} iconBg="#FF3B30" right={<Toggle value={notifs} onChange={setNotifs}/>}/>
+                <SettingRow t={t} label="Budget Alerts" icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 19h20L12 2zm0 6v5m0 3v1" stroke="#fff" strokeWidth="1.8" strokeLinecap="round"/></svg>} iconBg="#FF9500" right={<Toggle value={budgetAlerts} onChange={v=>setBudgetAlerts(v)}/>}/>
+                <SettingRow t={t} last label="Weekly Digest" icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="2" stroke="#fff" strokeWidth="1.8"/><path d="M8 2v4M16 2v4M3 10h18" stroke="#fff" strokeWidth="1.8" strokeLinecap="round"/></svg>} iconBg="#AF52DE" right={<Toggle value={weeklyDigest} onChange={setWeeklyDigest}/>}/>
+              </Section>
+
+              <Section label="Security" t={t}>
+                <SettingRow t={t} first label="Face ID / Touch ID" icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2a4 4 0 0 1 4 4v2a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z" stroke="#fff" strokeWidth="1.8"/></svg>} iconBg="#30D158" right={<Toggle value={biometrics} onChange={setBiometrics}/>}/>
+                <SettingRow t={t} chevron label="Change Passcode" sub="Update your 4-digit unlock code" icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="11" width="18" height="11" rx="2" stroke="#fff" strokeWidth="1.8"/><path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="#fff" strokeWidth="1.8" strokeLinecap="round"/></svg>} iconBg="#FF9500" onClick={()=>{setSavedPin(null);save("ledger_pin",null);setLocked(true);}}/>
+                <SettingRow t={t} last chevron label="Export to CSV" sub="Download all transactions" icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3v13m-5-5 5 5 5-5M5 21h14" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>} iconBg="#5AC8FA" onClick={exportCSV}/>
+              </Section>
+
+              <Section label="About" t={t}>
+                <SettingRow t={t} first label="Version" icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#fff" strokeWidth="1.8"/><path d="M12 8v4l3 3" stroke="#fff" strokeWidth="1.8" strokeLinecap="round"/></svg>} iconBg="#636366" right={<span style={{fontSize:14,color:t.label}}>2.0.0 PWA</span>}/>
+                <SettingRow t={t} last label="Install on iPhone" sub='Open in Safari → Share → "Add to Home Screen"' icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="5" y="2" width="14" height="20" rx="3" stroke="#fff" strokeWidth="1.8"/><path d="M9 18h6" stroke="#fff" strokeWidth="1.8" strokeLinecap="round"/></svg>} iconBg="#007AFF"/>
+              </Section>
+
+              <div style={{marginBottom:32}}>
+                <button onClick={()=>{if(window.confirm("Clear all data? This cannot be undone.")){setTransactions(INIT_TXN);setAccounts(INIT_ACCOUNTS);setBudgets(INIT_BUDGETS);setCategories(DEFAULT_CATEGORIES);showToast("Data reset to defaults.");}}} style={{width:"100%",background:"#FF3B3012",border:"none",borderRadius:12,padding:14,fontSize:15,fontWeight:600,color:"#FF3B30",cursor:"pointer"}}>Reset All Data</button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Tab bar */}
+        <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:t.tabBar,backdropFilter:"blur(20px)",borderTop:`1px solid ${t.border}`,display:"flex",zIndex:200,paddingBottom:"env(safe-area-inset-bottom,0px)"}}>
+          {TABS.map(tb=>(
+            <button key={tb.id} onClick={()=>setTab(tb.id)} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"9px 0 8px",background:"none",border:"none",cursor:"pointer",gap:3}}>
+              <div style={{color:tab===tb.id?"#007AFF":t.label,transition:"color .15s",display:"flex"}}>{tb.icon}</div>
+              <span style={{fontSize:9,fontWeight:tab===tb.id?600:400,color:tab===tb.id?"#007AFF":t.label}}>{tb.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Rocky FAB */}
+        <button className="rocky-fab" onClick={()=>setSheet("ai")} style={{position:"fixed",bottom:`calc(env(safe-area-inset-bottom,0px) + 84px)`,right:20,width:58,height:58,borderRadius:"50%",background:"linear-gradient(135deg,#007AFF 0%,#5856D6 100%)",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1,zIndex:300}}>
+          <SparkleIcon/><span style={{fontSize:9,fontWeight:700,color:"#fff",letterSpacing:"0.03em",marginTop:1}}>DEX</span>
+        </button>
+
+        {/* Toast */}
+        {toast&&<div style={{position:"fixed",bottom:"calc(env(safe-area-inset-bottom,0px) + 82px)",left:"50%",transform:"translateX(-50%)",background:t.toastBg,color:"#fff",padding:"10px 20px",borderRadius:20,fontSize:14,fontWeight:500,zIndex:999,animation:"toastIn .18s ease",whiteSpace:"nowrap",backdropFilter:"blur(12px)"}}>{toast}</div>}
+
+        {/* Sheets */}
+        <Sheet show={sheet==="addTxn"} onClose={()=>setSheet(null)} title="New Transaction" t={t}>
+          <Field label="Merchant" t={t}><input style={iStyle} placeholder="e.g. Whole Foods" value={newTxn.name} onChange={e=>setNewTxn(p=>({...p,name:e.target.value}))}/></Field>
+          <Field label="Amount" t={t}><input style={iStyle} type="number" min="0" step="0.01" placeholder="0.00" value={newTxn.amount} onChange={e=>setNewTxn(p=>({...p,amount:e.target.value}))}/></Field>
+          <Field label="Type" t={t}><div style={{display:"flex",gap:8}}>{["expense","income"].map(type=><button key={type} onClick={()=>setNewTxn(p=>({...p,type}))} style={{flex:1,padding:12,borderRadius:12,border:`1.5px solid ${newTxn.type===type?"#007AFF":t.inputBorder}`,background:newTxn.type===type?"#007AFF15":t.input,color:newTxn.type===type?"#007AFF":t.sub,fontSize:15,fontWeight:500,cursor:"pointer",textTransform:"capitalize"}}>{type}</button>)}</div></Field>
+          <Field label="Category" t={t}><select style={iStyle} value={newTxn.category} onChange={e=>setNewTxn(p=>({...p,category:e.target.value}))}><option value="">Select a category</option>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
+          <Field label="Date" t={t}><input style={iStyle} type="date" value={newTxn.date} onChange={e=>setNewTxn(p=>({...p,date:e.target.value}))}/></Field>
+          <Field label="Account" t={t}><select style={iStyle} value={newTxn.account} onChange={e=>setNewTxn(p=>({...p,account:e.target.value}))}><option value="">Select account</option>{accounts.map(a=><option key={a.id} value={a.name}>{a.name}</option>)}</select></Field>
+          <div style={{display:"flex",gap:10,paddingTop:4}}><Btn secondary full onClick={()=>setSheet(null)} t={t}>Cancel</Btn><Btn full onClick={addTxn} t={t}>Add</Btn></div>
+        </Sheet>
+
+        <Sheet show={sheet==="cats"} onClose={()=>setSheet(null)} title="Categories" tall t={t}>
+          <div style={{marginBottom:14}}><button onClick={()=>setSheet("addCat")} style={{width:"100%",background:"#007AFF",border:"none",borderRadius:12,padding:13,fontSize:15,fontWeight:600,color:"#fff",cursor:"pointer"}}>+ Add Category</button></div>
+          <div style={{background:t.card,borderRadius:14,overflow:"hidden",boxShadow:t.shadow}}>
+            {categories.map((cat,i)=>{const spent=transactions.filter(tx=>tx.category===cat.id&&tx.amount<0).reduce((a,tx)=>a+Math.abs(tx.amount),0),count=transactions.filter(tx=>tx.category===cat.id).length;return(
+              <div key={cat.id} className="rh" style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 14px",borderTop:i===0?"none":`1px solid ${t.separator}`}}>
+                <div style={{display:"flex",alignItems:"center",gap:11,minWidth:0,flex:1}}><div style={{width:32,height:32,borderRadius:9,background:cat.color+"22",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><div style={{width:10,height:10,borderRadius:3,background:cat.color}}/></div><div style={{minWidth:0}}><div style={{fontSize:15,fontWeight:500,color:t.text}}>{cat.name}</div><div style={{fontSize:12,color:t.label,marginTop:1}}>{count} txns · ${spent.toFixed(0)}</div></div></div>
+                <div style={{display:"flex",gap:6,flexShrink:0,marginLeft:8}}><button onClick={()=>{setEditCat({...cat});setSheet("editCat");}} style={{background:t.pillBg,border:"none",borderRadius:8,padding:"5px 11px",fontSize:13,fontWeight:500,color:t.sub,cursor:"pointer"}}>Edit</button><button onClick={()=>deleteCat(cat.id)} style={{background:"#FF3B3014",border:"none",borderRadius:8,padding:"5px 11px",fontSize:13,fontWeight:500,color:"#FF3B30",cursor:"pointer"}}>Delete</button></div>
+              </div>
+            );})}
+          </div>
+        </Sheet>
+
+        <Sheet show={sheet==="addCat"} onClose={()=>setSheet(null)} title="New Category" t={t}>
+          <Field label="Name" t={t}><input style={iStyle} placeholder="e.g. Subscriptions" value={newCat.name} onChange={e=>setNewCat(p=>({...p,name:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&addCat()}/></Field>
+          <Field label="Color" t={t}><ColorPicker current={newCat.color} onChange={c=>setNewCat(p=>({...p,color:c}))}/></Field>
+          <div style={{display:"flex",gap:10,marginTop:8}}><Btn secondary full onClick={()=>setSheet("cats")} t={t}>Cancel</Btn><Btn full onClick={addCat} t={t}>Add Category</Btn></div>
+        </Sheet>
+
+        <Sheet show={sheet==="editCat"} onClose={()=>setSheet(null)} title="Edit Category" t={t}>
+          {editCat&&<><Field label="Name" t={t}><input style={iStyle} value={editCat.name} onChange={e=>setEditCat(p=>({...p,name:e.target.value}))}/></Field><Field label="Color" t={t}><ColorPicker current={editCat.color} onChange={c=>setEditCat(p=>({...p,color:c}))}/></Field><div style={{display:"flex",gap:10,marginTop:8}}><Btn secondary full onClick={()=>setSheet(null)} t={t}>Cancel</Btn><Btn full onClick={saveEditCat} t={t}>Save</Btn></div></>}
+        </Sheet>
+
+        <Sheet show={sheet==="addAcct"} onClose={()=>setSheet(null)} title="Add Account" t={t}>
+          <Field label="Account Name" t={t}><input style={iStyle} placeholder="e.g. My Checking" value={newAcct.name} onChange={e=>setNewAcct(p=>({...p,name:e.target.value}))}/></Field>
+          <Field label="Institution" t={t}><input style={iStyle} placeholder="e.g. Chase" value={newAcct.institution} onChange={e=>setNewAcct(p=>({...p,institution:e.target.value}))}/></Field>
+          <Field label="Type" t={t}><select style={iStyle} value={newAcct.type} onChange={e=>setNewAcct(p=>({...p,type:e.target.value}))}>{ACCOUNT_TYPES.map(tp=><option key={tp} value={tp}>{tp}</option>)}</select></Field>
+          <Field label="Current Balance ($)" t={t}><input style={iStyle} type="number" step="0.01" placeholder="0.00" value={newAcct.balance} onChange={e=>setNewAcct(p=>({...p,balance:e.target.value}))}/></Field>
+          <Field label="Last 4 Digits (optional)" t={t}><input style={iStyle} placeholder="1234" maxLength={4} value={newAcct.last4} onChange={e=>setNewAcct(p=>({...p,last4:e.target.value}))}/></Field>
+          <div style={{display:"flex",gap:10,paddingTop:4}}><Btn secondary full onClick={()=>setSheet(null)} t={t}>Cancel</Btn><Btn full onClick={addAccount} t={t}>Add Account</Btn></div>
+        </Sheet>
+
+        <Sheet show={sheet==="editAcct"} onClose={()=>setSheet(null)} title="Edit Account" t={t}>
+          {editAccount&&<><Field label="Account Name" t={t}><input style={iStyle} value={editAccount.name} onChange={e=>setEditAccount(p=>({...p,name:e.target.value}))}/></Field><Field label="Institution" t={t}><input style={iStyle} value={editAccount.institution||""} onChange={e=>setEditAccount(p=>({...p,institution:e.target.value}))}/></Field><Field label="Type" t={t}><select style={iStyle} value={editAccount.type} onChange={e=>setEditAccount(p=>({...p,type:e.target.value}))}>{ACCOUNT_TYPES.map(tp=><option key={tp} value={tp}>{tp}</option>)}</select></Field><Field label="Balance ($)" t={t}><input style={iStyle} type="number" step="0.01" value={editAccount.balance} onChange={e=>setEditAccount(p=>({...p,balance:e.target.value}))}/></Field><Field label="Last 4 Digits" t={t}><input style={iStyle} placeholder="1234" maxLength={4} value={editAccount.last4||""} onChange={e=>setEditAccount(p=>({...p,last4:e.target.value}))}/></Field><div style={{display:"flex",gap:10,paddingTop:4,marginBottom:10}}><Btn danger full onClick={()=>{deleteAccount(editAccount.id);setSheet(null);setEditAccount(null);}} t={t}>Remove Account</Btn></div><div style={{display:"flex",gap:10}}><Btn secondary full onClick={()=>setSheet(null)} t={t}>Cancel</Btn><Btn full onClick={saveEditAccount} t={t}>Save</Btn></div></>}
+        </Sheet>
+
+        <Sheet show={sheet==="budget"} onClose={()=>setSheet(null)} title={`Budget — ${catMap[budgetTarget]?.name||""}`} t={t}>
+          <Field label="Monthly limit ($)" t={t}><input style={iStyle} type="number" min="0" step="1" placeholder="0" value={budgetVal} onChange={e=>setBudgetVal(e.target.value)} onKeyDown={e=>e.key==="Enter"&&saveBudget()}/></Field>
+          <div style={{display:"flex",gap:10,marginTop:4}}><Btn secondary full onClick={()=>setSheet(null)} t={t}>Cancel</Btn><Btn full onClick={saveBudget} t={t}>Save</Btn></div>
+        </Sheet>
+
+        <Sheet show={sheet==="backendUrl"} onClose={()=>setSheet(null)} title="Backend Server URL" t={t}>
+          <div style={{fontSize:14,color:t.label,marginBottom:14,lineHeight:1.5}}>Enter the URL of your running PocketBook backend. Use <span style={{fontFamily:"monospace",color:t.text}}>localhost:3001</span> for local, or your Railway/Render URL for remote.</div>
+          <Field label="URL" t={t}><input style={{...iStyle,fontFamily:"monospace",fontSize:14}} placeholder="http://localhost:3001" value={editBackendUrl} onChange={e=>setEditBackendUrl(e.target.value)}/></Field>
+          <div style={{display:"flex",gap:10,marginTop:4}}><Btn secondary full onClick={()=>setSheet(null)} t={t}>Cancel</Btn><Btn full onClick={()=>{setBackendUrl(editBackendUrl);setSheet(null);showToast("Backend URL saved");}} t={t}>Save</Btn></div>
+        </Sheet>
+
+        <Sheet show={sheet==="ai"} onClose={()=>setSheet(null)} title="Dex — AI Assistant" tall t={t}>
+          <div style={{height:"calc(72vh - 100px)",display:"flex",flexDirection:"column"}}>
+            <AIAssistant categories={categories} transactions={transactions} budgets={budgets} accounts={accounts} t={t} onAction={handleAIAction}/>
+          </div>
+        </Sheet>
+
+        <PlaidModal show={showPlaid} onClose={()=>setShowPlaid(false)} onConnect={handlePlaidConnect} t={t} backendUrl={backendUrl}/>
+      </div>
+    </>
+  );
+}
+
+// Global error handler - show error instead of black screen
+window.addEventListener("error", function(e) {
+  const loading = document.getElementById("loading");
+  const spinner = document.getElementById("loading-spinner");
+  const errEl = document.getElementById("loading-error");
+  if (loading) loading.style.display = "flex";
+  if (spinner) spinner.style.display = "none";
+  if (errEl) { errEl.style.display = "block"; errEl.textContent = "Error loading app: " + e.message + ". Please refresh the page."; }
+});
+
+// PWA service worker registration
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").then(r => console.log("SW registered", r.scope)).catch(e => console.log("SW failed", e));
+  });
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+// Hide loading screen once app mounts
+setTimeout(() => {
+  const el = document.getElementById("loading");
+  if (el) el.style.display = "none";
+}, 100);
+</script>
+</body>
+</html>
