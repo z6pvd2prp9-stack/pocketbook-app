@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="PocketBook"/>
+<meta name="theme-color" content="#1a3a6b"/>
+<link rel="manifest" href="/manifest.json"/>
+<link rel="apple-touch-icon" href="/icon-192.png"/>
+<title>PocketBook</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script>Babel.registerPreset("custom", {presets:[["env",{targets:{browsers:["last 2 Chrome versions"]}}],"react"]});</script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body,#root{height:100%;overflow:hidden}
+  body{background:#000;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Helvetica Neue",sans-serif}
+  #loading{position:fixed;inset:0;background:linear-gradient(170deg,#060d1a,#0a1628);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;z-index:99999}
+  #loading-logo{width:72px;height:72px;border-radius:20px;background:linear-gradient(145deg,#1a3a6b,#2a52a0);display:flex;align-items:center;justify-content:center;box-shadow:0 8px 32px rgba(26,58,107,.4);font-size:36px;font-weight:900;color:white}
+  #loading-title{font-size:26px;font-weight:700;color:#fff;letter-spacing:-.5px}
+  #loading-spinner{width:32px;height:32px;border-radius:50%;border:3px solid rgba(255,255,255,.15);border-top-color:#1a3a6b;animation:spin .8s linear infinite}
+  #loading-error{display:none;color:#FF3B30;font-size:13px;text-align:center;padding:0 40px;line-height:1.5}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  ::-webkit-scrollbar{display:none}
+  input,select,textarea{-webkit-appearance:none;appearance:none;font-family:inherit}
+  input[type=date]::-webkit-calendar-picker-indicator{opacity:.4}
+  @keyframes sheetUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes dot{0%,80%,100%{transform:scale(.55);opacity:.35}40%{transform:scale(1);opacity:1}}
+  @keyframes toastIn{from{opacity:0;transform:translate(-50%,6px)}to{opacity:1;transform:translate(-50%,0)}}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes shakePad{0%,100%{transform:translateX(0)}20%{transform:translateX(-10px)}40%{transform:translateX(10px)}60%{transform:translateX(-8px)}80%{transform:translateX(8px)}}
+  @keyframes faceScan{0%{box-shadow:0 0 0 0 rgba(26,58,107,.7)}70%{box-shadow:0 0 0 20px rgba(26,58,107,0)}100%{box-shadow:0 0 0 0 rgba(26,58,107,0)}}
+  @keyframes rockyPop{0%{transform:scale(.6) rotate(-10deg);opacity:0}70%{transform:scale(1.08) rotate(2deg)}100%{transform:scale(1) rotate(0);opacity:1}}
+  @keyframes rockyPulse{0%,100%{box-shadow:0 4px 20px rgba(26,58,107,.45)}50%{box-shadow:0 4px 28px rgba(42,82,160,.65)}}
+  .fu{animation:fadeUp .28s cubic-bezier(.16,1,.3,1) forwards}
+  .rh{transition:opacity .15s,transform .1s} .rh:active{opacity:.6;transform:scale(.98)}
+  .kBtn{transition:opacity .12s,transform .12s} .kBtn:active{opacity:.45;transform:scale(.91)}
+  .rocky-fab{animation:rockyPop .4s cubic-bezier(.34,1.56,.64,1) forwards,rockyPulse 3s ease-in-out 1s infinite}
+  .rocky-fab:active{transform:scale(.9)!important}
+  /* Apple-native card press */
+  .card-press{transition:transform .15s cubic-bezier(.16,1,.3,1),box-shadow .15s}
+  .card-press:active{transform:scale(.97);box-shadow:none!important}
+  /* Smoother sheet */
+  @keyframes sheetUp{from{transform:translateY(100%);opacity:.8}to{transform:translateY(0);opacity:1}}
+  /* Input focus glow */
+  input:focus,select:focus{outline:none;border-color:#1a3a6b!important;box-shadow:0 0 0 3px rgba(26,58,107,.15)}
+  /* Better scrolling */
+  *{-webkit-overflow-scrolling:touch}
+  /* Tab bar blur on iOS */
+  @supports(-webkit-backdrop-filter:blur(20px)){
+    .tab-bar{-webkit-backdrop-filter:blur(20px)!important}
+  }
+
+  /* ── Desktop layout ── */
+  @media(min-width:768px){
+    #pb-root{display:grid!important;grid-template-columns:240px 1fr;max-width:1100px!important}
+    #pb-sidebar{display:flex!important}
+    #pb-tabbar{display:none!important}
+    #pb-content{border-left:1px solid rgba(255,255,255,.06)}
+    #pb-header{grid-column:1/-1}
+    .rocky-fab{right:calc(50% - 310px)!important}
+  }
+  @media(max-width:767px){
+    #pb-sidebar{display:none!important}
+  }
+</style>
+</head>
+<body>
+<div id="loading">
+  <div id="loading-logo">P</div>
+  <div id="loading-title">PocketBook</div>
+  <div id="loading-sub">Loading your finances…</div>
+  <div id="loading-spinner"></div>
+  <div id="loading-error"></div>
+  <button id="loading-refresh" onclick="location.reload()">Tap to Refresh</button>
+</div>
+<script>
+// Show refresh button after 8 seconds if still loading
+setTimeout(function() {
+  var r = document.getElementById("loading-refresh");
+  var s = document.getElementById("loading-sub");
+  if (r && document.getElementById("loading").style.display !== "none") {
+    if (s) s.textContent = "Taking longer than usual…";
+    r.style.display = "block";
+  }
+}, 8000);
+// Show refresh after 20 seconds no matter what
+setTimeout(function() {
+  var r = document.getElementById("loading-refresh");
+  if (r) r.style.display = "block";
+}, 20000);
+</script>
+<div id="root"></div>
+<script type="text/babel" src="app.jsx" data-presets="react"></script>
+</body>
+</html>
